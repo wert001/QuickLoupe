@@ -62,6 +62,9 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
+    //permissions
+    implementation(libs.permissions)
+
     //firebase
     implementation(libs.firebase.analytics)
 
