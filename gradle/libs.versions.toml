@@ -11,6 +11,8 @@ composeBom = "2024.09.00"
 camerax = "1.5.2"
 hilt = "2.57.2"
 ksp = "2.0.21-1.0.27"
+googleGmsGoogleServices = "4.4.4"
+firebaseAnalytics = "23.0.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -37,11 +39,18 @@ camerax-view = {group = "androidx.camera", name = "camera-view", version.ref = "
 hilt-android =  { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler =  { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
 
+#firebase
+firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics", version.ref = "firebaseAnalytics" }
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 
+#hilt
 hilt-plugin = { id = "com.google.dagger.hilt.android", version.ref = "hilt"}
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+
+#firebsae
+google-gms-google-services = { id = "com.google.gms.google-services", version.ref = "googleGmsGoogleServices" }
 

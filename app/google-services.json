@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "275045307808",
+    "project_id": "quick-loup-id",
+    "storage_bucket": "quick-loup-id.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:275045307808:android:fe513fe21ea99b46e5c0c5",
+        "android_client_info": {
+          "package_name": "ru.wert.quickloupe"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCpoyamw7Wmd1tZM3nQnzy6dwIBNZ8eWgg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

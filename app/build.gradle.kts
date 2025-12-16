@@ -2,8 +2,9 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.ksp)
-    alias(libs.plugins.hilt.plugin)
+    alias(libs.plugins.ksp) //hilt
+    alias(libs.plugins.hilt.plugin) //hilt
+    alias(libs.plugins.google.gms.google.services)//firebase
 
 }
 
@@ -60,6 +61,9 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    //firebase
+    implementation(libs.firebase.analytics)
 
     // CameraX
 
