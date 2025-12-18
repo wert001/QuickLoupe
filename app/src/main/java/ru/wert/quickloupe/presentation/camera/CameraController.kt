@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
 import android.view.ViewGroup
+import android.view.WindowManager
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -42,7 +43,8 @@ class CameraController(
     private lateinit var cameraExecutor: ExecutorService
 
     // Preview view
-    private lateinit var previewView: PreviewView
+    private var previewView: PreviewView? = null
+    private var isPaused: Boolean = false
 
     suspend fun initialize(): Boolean {
         return withContext(Dispatchers.IO) {
@@ -51,7 +53,7 @@ class CameraController(
 
                 // Получаем camera provider асинхронно
                 val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-                cameraProvider = cameraProviderFuture.get() // Используем get() вместо await()
+                cameraProvider = cameraProviderFuture.get()
 
                 cameraExecutor = Executors.newSingleThreadExecutor()
 
@@ -74,6 +76,11 @@ class CameraController(
     }
 
     private fun setupCamera() {
+        if (isPaused) {
+            Log.d(TAG, "Camera is paused, skipping setup")
+            return
+        }
+
         val cameraProvider = cameraProvider ?: run {
             Log.e(TAG, "Camera provider is null")
             _state.update { it.copy(
@@ -83,20 +90,22 @@ class CameraController(
             return
         }
 
-        // Проверяем, что previewView инициализирован
-        if (!::previewView.isInitialized) {
-            Log.e(TAG, "PreviewView not initialized")
-            _state.update { it.copy(
-                error = "Ошибка отображения камеры",
-                isLoading = false
-            ) }
-            return
+        val previewView = previewView ?: run {
+            Log.e(TAG, "PreviewView is null, creating new one")
+            createPreviewView(context)
         }
 
         try {
+            // Unbind use cases before rebinding
+            cameraProvider.unbindAll()
+
+            // Получаем rotation из WindowManager
+            val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val rotation = windowManager.defaultDisplay.rotation
+
             // Preview
             preview = Preview.Builder()
-                .setTargetRotation(previewView.display.rotation)
+                .setTargetRotation(rotation)
                 .build()
                 .also {
                     it.setSurfaceProvider(previewView.surfaceProvider)
@@ -106,9 +115,6 @@ class CameraController(
             val cameraSelector = CameraSelector.Builder()
                 .requireLensFacing(CameraSelector.LENS_FACING_BACK)
                 .build()
-
-            // Unbind use cases before rebinding
-            cameraProvider.unbindAll()
 
             // Bind use cases to camera
             camera = cameraProvider.bindToLifecycle(
@@ -136,6 +142,32 @@ class CameraController(
                 error = "Не удалось подключить камеру: ${e.localizedMessage}",
                 isLoading = false
             ) }
+        }
+    }
+
+    suspend fun pauseCamera() {
+        withContext(Dispatchers.Main) {
+            try {
+                isPaused = true
+                cameraProvider?.unbindAll()
+                camera = null
+                preview = null
+                Log.d(TAG, "Camera paused")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to pause camera", e)
+            }
+        }
+    }
+
+    suspend fun resumeCamera() {
+        withContext(Dispatchers.Main) {
+            try {
+                isPaused = false
+                setupCamera()
+                Log.d(TAG, "Camera resumed")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to resume camera", e)
+            }
         }
     }
 
@@ -171,8 +203,8 @@ class CameraController(
         }
     }
 
-    suspend fun toggleFreeze() {
-        _state.update { it.copy(isFrozen = !_state.value.isFrozen) }
+    fun setFrozen(frozen: Boolean) {
+        _state.update { it.copy(isFrozen = frozen) }
     }
 
     suspend fun setFilter(filterType: FilterType) {
@@ -182,7 +214,9 @@ class CameraController(
 
     fun captureFrame(): Bitmap? {
         return try {
-            previewView.bitmap
+            // Даем время для стабилизации изображения
+            Thread.sleep(100)
+            previewView?.bitmap
         } catch (e: Exception) {
             Log.e(TAG, "Failed to capture frame", e)
             null
@@ -198,6 +232,10 @@ class CameraController(
             scaleType = PreviewView.ScaleType.FILL_CENTER
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
+        return previewView!!
+    }
+
+    fun getPreviewView(): PreviewView? {
         return previewView
     }
 
@@ -209,6 +247,7 @@ class CameraController(
         try {
             cameraExecutor.shutdown()
             cameraProvider?.unbindAll()
+            previewView = null
             _state.update { CameraState() }
         } catch (e: Exception) {
             Log.e(TAG, "Error releasing camera", e)

@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.LifecycleOwner
 import com.google.accompanist.permissions.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalPermissionsApi::class)
@@ -35,9 +36,15 @@ fun CameraScreen(
     val scope = rememberCoroutineScope()
 
     // Состояние камеры
-    val cameraController = remember { CameraController(context, lifecycleOwner) }
+    val cameraController = remember {
+        CameraController(context, lifecycleOwner).apply {
+            // Сразу создаем preview view
+            createPreviewView(context)
+        }
+    }
     var cameraState by remember { mutableStateOf(CameraState()) }
     var frozenBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var isCapturing by remember { mutableStateOf(false) }
 
     // Разрешения
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
@@ -87,10 +94,33 @@ fun CameraScreen(
                 },
                 onFreezeToggle = {
                     scope.launch {
-                        if (!cameraState.isFrozen) {
-                            frozenBitmap = cameraController.captureFrame()
+                        if (!cameraState.isFrozen && !isCapturing) {
+                            // Захватываем кадр
+                            isCapturing = true
+                            try {
+                                // Даем небольшую задержку для стабилизации
+                                delay(50)
+                                val bitmap = cameraController.captureFrame()
+                                if (bitmap != null) {
+                                    frozenBitmap = bitmap
+                                    // Приостанавливаем камеру
+                                    cameraController.pauseCamera()
+                                    // Устанавливаем состояние заморозки
+                                    cameraController.setFrozen(true)
+                                } else {
+                                    onError("Не удалось захватить изображение")
+                                }
+                            } finally {
+                                isCapturing = false
+                            }
+                        } else if (cameraState.isFrozen) {
+                            // Возобновляем работу камеры
+                            cameraController.resumeCamera()
+                            // Очищаем bitmap
+                            frozenBitmap = null
+                            // Снимаем состояние заморозки
+                            cameraController.setFrozen(false)
                         }
-                        cameraController.toggleFreeze()
                     }
                 },
                 onFilterToggle = {
@@ -118,7 +148,7 @@ fun CameraScreen(
         }
 
         // Индикатор загрузки
-        if (cameraState.isLoading) {
+        if (cameraState.isLoading || isCapturing) {
             LoadingIndicator()
         }
 
@@ -137,15 +167,15 @@ private fun CameraPreviewView(
     controller: CameraController,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-
     AndroidView(
         factory = { ctx ->
-            controller.createPreviewView(ctx)
+            // Получаем уже созданный preview view
+            controller.getPreviewView() ?: controller.createPreviewView(ctx)
         },
         modifier = modifier,
         update = { previewView ->
-            // Обновление previewView при необходимости
+            // Принудительное обновление preview
+            previewView.invalidate()
         }
     )
 }
