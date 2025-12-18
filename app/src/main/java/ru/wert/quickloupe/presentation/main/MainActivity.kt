@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import dagger.hilt.android.AndroidEntryPoint
 import ru.wert.quickloupe.presentation.camera.CameraScreen
 import ru.wert.quickloupe.presentation.theme.QuickLoupeTheme
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -25,7 +27,6 @@ class MainActivity : ComponentActivity() {
                             println("Camera error: $errorMessage")
                         },
                         onBackPressed = {
-                            // Обработка нажатия назад
                             finish()
                         }
                     )

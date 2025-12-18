@@ -3,11 +3,9 @@ package ru.wert.quickloupe.presentation.camera
 import android.Manifest
 import android.graphics.Bitmap
 import androidx.compose.animation.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,9 +15,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.LifecycleOwner
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.accompanist.permissions.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -27,6 +25,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun CameraScreen(
+    viewModel: CameraViewModel = hiltViewModel(),
     modifier: Modifier = Modifier,
     onError: (String) -> Unit = {},
     onBackPressed: () -> Unit = {}
@@ -35,33 +34,25 @@ fun CameraScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
 
-    // Состояние камеры
-    val cameraController = remember {
-        CameraController(context, lifecycleOwner).apply {
-            // Сразу создаем preview view
-            createPreviewView(context)
-        }
+    // Инициализируем камеру с lifecycleOwner
+    LaunchedEffect(lifecycleOwner) {
+        viewModel.initializeCamera(lifecycleOwner)
     }
-    var cameraState by remember { mutableStateOf(CameraState()) }
+
+    // Состояние из ViewModel
+    val cameraState by viewModel.cameraState.collectAsStateWithLifecycle()
+
+    // Локальные состояния UI
     var frozenBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isCapturing by remember { mutableStateOf(false) }
 
+    // Репозиторий для работы с камерой (временное решение до внедрения DI)
+    val cameraRepository = remember(lifecycleOwner) {
+        ru.wert.quickloupe.data.repository.CameraRepositoryImpl(context, lifecycleOwner)
+    }
+
     // Разрешения
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
-
-    // Инициализация камеры при первом запуске
-    LaunchedEffect(Unit) {
-        if (cameraPermissionState.status.isGranted) {
-            initializeCamera(cameraController, onError)
-        }
-    }
-
-    // Обновление состояния камеры
-    LaunchedEffect(cameraController) {
-        cameraController.state.collect { state ->
-            cameraState = state
-        }
-    }
 
     Box(modifier = modifier.fillMaxSize()) {
         if (cameraPermissionState.status.isGranted) {
@@ -74,7 +65,7 @@ fun CameraScreen(
             } else {
                 // Показываем живой поток с камеры
                 CameraPreviewView(
-                    controller = cameraController,
+                    repository = cameraRepository,
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -83,14 +74,10 @@ fun CameraScreen(
             CameraOverlay(
                 state = cameraState,
                 onZoomChanged = { zoom ->
-                    scope.launch {
-                        cameraController.setZoom(zoom)
-                    }
+                    viewModel.setZoom(zoom)
                 },
                 onFlashToggle = {
-                    scope.launch {
-                        cameraController.toggleFlash()
-                    }
+                    viewModel.toggleFlash()
                 },
                 onFreezeToggle = {
                     scope.launch {
@@ -98,15 +85,12 @@ fun CameraScreen(
                             // Захватываем кадр
                             isCapturing = true
                             try {
-                                // Даем небольшую задержку для стабилизации
                                 delay(50)
-                                val bitmap = cameraController.captureFrame()
+                                val bitmap = cameraRepository.captureFrame()
                                 if (bitmap != null) {
                                     frozenBitmap = bitmap
-                                    // Приостанавливаем камеру
-                                    cameraController.pauseCamera()
-                                    // Устанавливаем состояние заморозки
-                                    cameraController.setFrozen(true)
+                                    viewModel.pauseCamera()
+                                    viewModel.setFrozen(true)
                                 } else {
                                     onError("Не удалось захватить изображение")
                                 }
@@ -114,32 +98,25 @@ fun CameraScreen(
                                 isCapturing = false
                             }
                         } else if (cameraState.isFrozen) {
-                            // Возобновляем работу камеры
-                            cameraController.resumeCamera()
-                            // Очищаем bitmap
+                            viewModel.resumeCamera()
                             frozenBitmap = null
-                            // Снимаем состояние заморозки
-                            cameraController.setFrozen(false)
+                            viewModel.setFrozen(false)
                         }
                     }
                 },
                 onFilterToggle = {
-                    // Переключение фильтров
                     val nextFilter = when (cameraState.currentFilter) {
-                        FilterType.NORMAL -> FilterType.INVERTED
-                        FilterType.INVERTED -> FilterType.GRAYSCALE
-                        FilterType.GRAYSCALE -> FilterType.HIGH_CONTRAST
-                        FilterType.HIGH_CONTRAST -> FilterType.NORMAL
+                        ru.wert.quickloupe.domain.models.FilterType.NORMAL -> ru.wert.quickloupe.domain.models.FilterType.INVERTED
+                        ru.wert.quickloupe.domain.models.FilterType.INVERTED -> ru.wert.quickloupe.domain.models.FilterType.GRAYSCALE
+                        ru.wert.quickloupe.domain.models.FilterType.GRAYSCALE -> ru.wert.quickloupe.domain.models.FilterType.HIGH_CONTRAST
+                        ru.wert.quickloupe.domain.models.FilterType.HIGH_CONTRAST -> ru.wert.quickloupe.domain.models.FilterType.NORMAL
                     }
-                    scope.launch {
-                        cameraController.setFilter(nextFilter)
-                    }
+                    viewModel.setFilter(nextFilter)
                 },
                 onBackPressed = onBackPressed,
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            // Экран запроса разрешений
             PermissionRequiredScreen(
                 permissionState = cameraPermissionState,
                 onRequestPermission = { cameraPermissionState.launchPermissionRequest() },
@@ -156,7 +133,7 @@ fun CameraScreen(
         cameraState.error?.let { error ->
             ErrorMessage(
                 message = error,
-                onDismiss = { cameraController.clearError() }
+                onDismiss = { viewModel.clearError() }
             )
         }
     }
@@ -164,17 +141,15 @@ fun CameraScreen(
 
 @Composable
 private fun CameraPreviewView(
-    controller: CameraController,
+    repository: ru.wert.quickloupe.data.repository.CameraRepositoryImpl,
     modifier: Modifier = Modifier
 ) {
     AndroidView(
         factory = { ctx ->
-            // Получаем уже созданный preview view
-            controller.getPreviewView() ?: controller.createPreviewView(ctx)
+            repository.getPreviewView() ?: repository.createPreviewView()
         },
         modifier = modifier,
         update = { previewView ->
-            // Принудительное обновление preview
             previewView.invalidate()
         }
     )
@@ -185,7 +160,7 @@ private fun FrozenFrameView(
     bitmap: Bitmap,
     modifier: Modifier = Modifier
 ) {
-    androidx.compose.foundation.Image(
+    Image(
         bitmap = bitmap.asImageBitmap(),
         contentDescription = "Frozen frame",
         modifier = modifier,
@@ -220,15 +195,4 @@ private fun ErrorMessage(
             }
         }
     )
-}
-
-private suspend fun initializeCamera(
-    controller: CameraController,
-    onError: (String) -> Unit
-) {
-    try {
-        controller.initialize()
-    } catch (e: Exception) {
-        onError("Не удалось инициализировать камеру: ${e.message}")
-    }
 }

@@ -2,7 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.ksp) //hilt
+    alias(libs.plugins.kotlin.kapt) //hilt
     alias(libs.plugins.hilt.plugin) //hilt
     alias(libs.plugins.google.gms.google.services)//firebase
 
@@ -40,6 +40,14 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
+
+    kapt {
+        correctErrorTypes = true
+        javacOptions {
+            option("-Adagger.fastInit=ENABLED")
+        }
+    }
+
     buildFeatures {
         compose = true
     }
@@ -76,9 +84,12 @@ dependencies {
     implementation(libs.camerax.view)
 
     //hilt
-    ksp(libs.hilt.compiler)
+    kapt(libs.hilt.compiler)
     implementation(libs.hilt.android)
+    implementation(libs.hilt.navigation.compose)
+//    implementation(libs.hilt.compiler.x)
 
     implementation("androidx.compose.material:material-icons-extended")
 
 }
+

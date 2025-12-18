@@ -42,6 +42,9 @@ permissions =  { group = "com.google.accompanist", name = "accompanist-permissio
 #hilt
 hilt-android =  { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler =  { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
+#hilt-navigation =  { group = "com.google.dagger", name = "hilt-android-navigation", version.ref = "hilt" }
+hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version = "1.3.0" }
+hilt-compiler-x = { group = "androidx.hilt", name = "hilt-compiler", version = "1.3.0" }
 
 #firebase
 firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics", version.ref = "firebaseAnalytics" }
@@ -53,7 +56,7 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 
 #hilt
 hilt-plugin = { id = "com.google.dagger.hilt.android", version.ref = "hilt"}
-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+kotlin-kapt = { id = "org.jetbrains.kotlin.kapt" }
 
 #firebsae
 google-gms-google-services = { id = "com.google.gms.google-services", version.ref = "googleGmsGoogleServices" }

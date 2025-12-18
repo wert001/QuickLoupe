@@ -12,12 +12,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import ru.wert.quickloupe.domain.models.CameraState
+import ru.wert.quickloupe.domain.models.FilterType
 import ru.wert.quickloupe.presentation.common.components.ZoomSlider
 import ru.wert.quickloupe.presentation.common.components.ControlButton
 
 @Composable
 fun CameraOverlay(
-    state: CameraState,
+    state: ru.wert.quickloupe.domain.models.CameraState,
     onZoomChanged: (Float) -> Unit,
     onFlashToggle: () -> Unit,
     onFreezeToggle: () -> Unit,

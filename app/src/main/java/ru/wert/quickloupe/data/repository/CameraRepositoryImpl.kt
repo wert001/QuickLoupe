@@ -1,14 +1,10 @@
-package ru.wert.quickloupe.presentation.camera
+package ru.wert.quickloupe.data.repository
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.util.Log
-import android.view.ViewGroup
-import android.view.WindowManager
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.Dispatchers
@@ -17,15 +13,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
+import ru.wert.quickloupe.domain.models.CameraState
+import ru.wert.quickloupe.domain.models.FilterType
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-class CameraController(
+class CameraRepositoryImpl(
     private val context: Context,
     private val lifecycleOwner: LifecycleOwner
-) {
+) : CameraRepository {
     companion object {
-        private const val TAG = "CameraController"
+        private const val TAG = "CameraRepository"
         const val MIN_ZOOM = 1.0f
         const val MAX_ZOOM = 10.0f
         const val DEFAULT_ZOOM = 1.0f
@@ -33,7 +31,7 @@ class CameraController(
 
     // Состояние камеры
     private val _state = MutableStateFlow(CameraState())
-    val state: StateFlow<CameraState> = _state.asStateFlow()
+    override fun getCameraState(): StateFlow<CameraState> = _state.asStateFlow()
 
     // CameraX компоненты
     private var cameraProvider: ProcessCameraProvider? = null
@@ -46,11 +44,9 @@ class CameraController(
     private var previewView: PreviewView? = null
     private var isPaused: Boolean = false
 
-    suspend fun initialize(): Boolean {
+    override suspend fun initializeCamera(): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                Log.d(TAG, "Starting camera initialization...")
-
                 // Получаем camera provider асинхронно
                 val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
                 cameraProvider = cameraProviderFuture.get()
@@ -62,10 +58,8 @@ class CameraController(
                     setupCamera()
                 }
 
-                Log.d(TAG, "Camera initialized successfully")
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "Camera initialization failed", e)
                 _state.update { it.copy(
                     error = "Не удалось инициализировать камеру: ${e.localizedMessage}",
                     isLoading = false
@@ -76,13 +70,9 @@ class CameraController(
     }
 
     private fun setupCamera() {
-        if (isPaused) {
-            Log.d(TAG, "Camera is paused, skipping setup")
-            return
-        }
+        if (isPaused) return
 
         val cameraProvider = cameraProvider ?: run {
-            Log.e(TAG, "Camera provider is null")
             _state.update { it.copy(
                 error = "Камера недоступна",
                 isLoading = false
@@ -90,26 +80,17 @@ class CameraController(
             return
         }
 
-        val previewView = previewView ?: run {
-            Log.e(TAG, "PreviewView is null, creating new one")
-            createPreviewView(context)
+        if (previewView == null) {
+            createPreviewView()
         }
 
         try {
-            // Unbind use cases before rebinding
             cameraProvider.unbindAll()
 
-            // Получаем rotation из WindowManager
-            val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-            val rotation = windowManager.defaultDisplay.rotation
-
             // Preview
-            preview = Preview.Builder()
-                .setTargetRotation(rotation)
-                .build()
-                .also {
-                    it.setSurfaceProvider(previewView.surfaceProvider)
-                }
+            preview = Preview.Builder().build().also {
+                it.setSurfaceProvider(previewView!!.surfaceProvider)
+            }
 
             // Выбор камеры (задняя)
             val cameraSelector = CameraSelector.Builder()
@@ -134,10 +115,7 @@ class CameraController(
                     error = null
                 )
             }
-
-            Log.d(TAG, "Camera setup completed successfully")
         } catch (e: Exception) {
-            Log.e(TAG, "Use case binding failed", e)
             _state.update { it.copy(
                 error = "Не удалось подключить камеру: ${e.localizedMessage}",
                 isLoading = false
@@ -145,33 +123,31 @@ class CameraController(
         }
     }
 
-    suspend fun pauseCamera() {
+    override suspend fun pauseCamera() {
         withContext(Dispatchers.Main) {
             try {
                 isPaused = true
                 cameraProvider?.unbindAll()
                 camera = null
                 preview = null
-                Log.d(TAG, "Camera paused")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to pause camera", e)
+                _state.update { it.copy(error = "Ошибка при паузе камеры") }
             }
         }
     }
 
-    suspend fun resumeCamera() {
+    override suspend fun resumeCamera() {
         withContext(Dispatchers.Main) {
             try {
                 isPaused = false
                 setupCamera()
-                Log.d(TAG, "Camera resumed")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to resume camera", e)
+                _state.update { it.copy(error = "Ошибка при возобновлении камеры") }
             }
         }
     }
 
-    suspend fun setZoom(zoomLevel: Float) {
+    override suspend fun setZoom(zoomLevel: Float) {
         val clampedZoom = zoomLevel.coerceIn(MIN_ZOOM, MAX_ZOOM)
 
         try {
@@ -180,12 +156,11 @@ class CameraController(
                 _state.update { it.copy(zoomLevel = clampedZoom) }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Zoom failed", e)
             _state.update { it.copy(error = "Ошибка изменения зума") }
         }
     }
 
-    suspend fun toggleFlash(): Boolean {
+    override suspend fun toggleFlash(): Boolean {
         return try {
             val camera = camera ?: return false
             val torchState = !_state.value.isFlashEnabled
@@ -197,37 +172,34 @@ class CameraController(
             _state.update { it.copy(isFlashEnabled = torchState) }
             torchState
         } catch (e: Exception) {
-            Log.e(TAG, "Flash toggle failed", e)
             _state.update { it.copy(error = "Не удалось включить вспышку") }
             false
         }
     }
 
-    fun setFrozen(frozen: Boolean) {
+    override fun setFrozen(frozen: Boolean) {
         _state.update { it.copy(isFrozen = frozen) }
     }
 
-    suspend fun setFilter(filterType: FilterType) {
+    override suspend fun setFilter(filterType: FilterType) {
         // Здесь будет применение фильтров к изображению
         _state.update { it.copy(currentFilter = filterType) }
     }
 
-    fun captureFrame(): Bitmap? {
+    override fun captureFrame(): Bitmap? {
         return try {
-            // Даем время для стабилизации изображения
-            Thread.sleep(100)
+            Thread.sleep(100) // Даем время для стабилизации изображения
             previewView?.bitmap
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to capture frame", e)
             null
         }
     }
 
-    fun createPreviewView(context: Context): PreviewView {
+    fun createPreviewView(): PreviewView {
         previewView = PreviewView(context).apply {
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
+            layoutParams = android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT
             )
             scaleType = PreviewView.ScaleType.FILL_CENTER
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
@@ -235,41 +207,20 @@ class CameraController(
         return previewView!!
     }
 
-    fun getPreviewView(): PreviewView? {
-        return previewView
-    }
+    fun getPreviewView(): PreviewView? = previewView
 
-    fun clearError() {
+    override fun clearError() {
         _state.update { it.copy(error = null) }
     }
 
-    fun release() {
+    override fun release() {
         try {
             cameraExecutor.shutdown()
             cameraProvider?.unbindAll()
             previewView = null
             _state.update { CameraState() }
         } catch (e: Exception) {
-            Log.e(TAG, "Error releasing camera", e)
+            _state.update { it.copy(error = "Ошибка освобождения ресурсов") }
         }
     }
-}
-
-// Состояние камеры
-data class CameraState(
-    val isLoading: Boolean = true,
-    val isInitialized: Boolean = false,
-    val isFlashEnabled: Boolean = false,
-    val isFrozen: Boolean = false,
-    val zoomLevel: Float = CameraController.DEFAULT_ZOOM,
-    val currentFilter: FilterType = FilterType.NORMAL,
-    val error: String? = null
-)
-
-// Типы фильтров
-enum class FilterType {
-    NORMAL,
-    INVERTED,
-    GRAYSCALE,
-    HIGH_CONTRAST
 }
