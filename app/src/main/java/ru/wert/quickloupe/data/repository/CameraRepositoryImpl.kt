@@ -2,12 +2,15 @@ package ru.wert.quickloupe.data.repository
 
 import android.content.Context
 import android.graphics.Bitmap
-import androidx.camera.core.*
+import androidx.camera.core.Camera
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,7 +45,7 @@ class CameraRepositoryImpl(
 
     // Preview view
     private var previewView: PreviewView? = null
-    private var isPaused: Boolean = false
+    private var isCameraBound: Boolean = false
 
     override suspend fun initializeCamera(): Boolean {
         return withContext(Dispatchers.IO) {
@@ -55,7 +58,7 @@ class CameraRepositoryImpl(
 
                 // Возвращаемся в главный поток для настройки UI
                 withContext(Dispatchers.Main) {
-                    setupCamera()
+                    bindCameraUseCases()
                 }
 
                 true
@@ -69,9 +72,7 @@ class CameraRepositoryImpl(
         }
     }
 
-    private fun setupCamera() {
-        if (isPaused) return
-
+    private fun bindCameraUseCases() {
         val cameraProvider = cameraProvider ?: run {
             _state.update { it.copy(
                 error = "Камера недоступна",
@@ -80,12 +81,14 @@ class CameraRepositoryImpl(
             return
         }
 
-        if (previewView == null) {
-            createPreviewView()
-        }
-
         try {
-            cameraProvider.unbindAll()
+            // Сначала отключаем все use cases
+            unbindCamera()
+
+            // Создаем preview view если нужно
+            if (previewView == null) {
+                createPreviewView()
+            }
 
             // Preview
             preview = Preview.Builder().build().also {
@@ -105,13 +108,19 @@ class CameraRepositoryImpl(
             )
 
             // Настройка зума
-            camera?.cameraControl?.setZoomRatio(DEFAULT_ZOOM)
+            camera?.cameraControl?.setZoomRatio(_state.value.zoomLevel)
+
+            // Восстанавливаем состояние вспышки
+            if (_state.value.isFlashEnabled) {
+                camera?.cameraControl?.enableTorch(true)
+            }
+
+            isCameraBound = true
 
             _state.update {
                 it.copy(
                     isLoading = false,
                     isInitialized = true,
-                    zoomLevel = DEFAULT_ZOOM,
                     error = null
                 )
             }
@@ -123,13 +132,21 @@ class CameraRepositoryImpl(
         }
     }
 
+    private fun unbindCamera() {
+        try {
+            cameraProvider?.unbindAll()
+            camera = null
+            preview = null
+            isCameraBound = false
+        } catch (e: Exception) {
+            // Игнорируем ошибки при отключении
+        }
+    }
+
     override suspend fun pauseCamera() {
         withContext(Dispatchers.Main) {
             try {
-                isPaused = true
-                cameraProvider?.unbindAll()
-                camera = null
-                preview = null
+                unbindCamera()
             } catch (e: Exception) {
                 _state.update { it.copy(error = "Ошибка при паузе камеры") }
             }
@@ -139,8 +156,9 @@ class CameraRepositoryImpl(
     override suspend fun resumeCamera() {
         withContext(Dispatchers.Main) {
             try {
-                isPaused = false
-                setupCamera()
+                // Не используем Thread.sleep в корутинах
+                delay(100)
+                bindCameraUseCases()
             } catch (e: Exception) {
                 _state.update { it.copy(error = "Ошибка при возобновлении камеры") }
             }
@@ -188,8 +206,9 @@ class CameraRepositoryImpl(
 
     override fun captureFrame(): Bitmap? {
         return try {
-            Thread.sleep(100) // Даем время для стабилизации изображения
-            previewView?.bitmap
+            // Вместо Thread.sleep используем небольшую паузу
+            // или лучше - сделать это асинхронно
+            previewView?.bitmap?.copy(Bitmap.Config.ARGB_8888, false)
         } catch (e: Exception) {
             null
         }
@@ -215,8 +234,8 @@ class CameraRepositoryImpl(
 
     override fun release() {
         try {
+            unbindCamera()
             cameraExecutor.shutdown()
-            cameraProvider?.unbindAll()
             previewView = null
             _state.update { CameraState() }
         } catch (e: Exception) {

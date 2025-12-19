@@ -46,9 +46,20 @@ fun CameraScreen(
     // Локальные состояния UI
     var frozenBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isCapturing by remember { mutableStateOf(false) }
+    var previewView by remember { mutableStateOf<android.view.View?>(null) }
 
     // Разрешения
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
+
+    // Получаем preview view из репозитория
+    LaunchedEffect(cameraState.isInitialized) {
+        if (cameraState.isInitialized) {
+            val view = viewModel.getPreviewView()
+            if (view != null && previewView == null) {
+                previewView = view
+            }
+        }
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         when {
@@ -67,29 +78,22 @@ fun CameraScreen(
             }
 
             // Камера готова
-            else -> {
-                // Временный репозиторий для preview (до рефакторинга)
-                val cameraRepository = remember(lifecycleOwner) {
-                    ru.wert.quickloupe.data.repository.CameraRepositoryImpl(context, lifecycleOwner)
-                }
-
-                // Инициализируем preview
-                LaunchedEffect(cameraRepository) {
-                    cameraRepository.initializeCamera()
-                }
-
+            cameraState.isInitialized -> {
                 if (cameraState.isFrozen && frozenBitmap != null) {
                     // Показываем замороженный кадр
                     FrozenFrameView(
                         bitmap = frozenBitmap!!,
                         modifier = Modifier.fillMaxSize()
                     )
-                } else {
+                } else if (previewView != null) {
                     // Показываем живой поток с камеры
                     CameraPreviewView(
-                        repository = cameraRepository,
+                        previewView = previewView!!,
                         modifier = Modifier.fillMaxSize()
                     )
+                } else {
+                    // Показываем загрузку пока preview не готов
+                    LoadingIndicator()
                 }
 
                 // Overlay с управлением
@@ -107,11 +111,11 @@ fun CameraScreen(
                                 // Захватываем кадр
                                 isCapturing = true
                                 try {
-                                    delay(50) // Даем время для стабилизации
-                                    val bitmap = cameraRepository.captureFrame()
+                                    delay(100) // Даем время для стабилизации
+                                    val bitmap = viewModel.captureFrame()
                                     if (bitmap != null) {
                                         frozenBitmap = bitmap
-                                        viewModel.pauseCamera()
+                                        viewModel.pauseCamera() // Останавливаем камеру
                                         viewModel.setFrozen(true)
                                     } else {
                                         onError("Не удалось захватить изображение")
@@ -121,7 +125,8 @@ fun CameraScreen(
                                 }
                             } else if (cameraState.isFrozen) {
                                 // Возвращаемся к live preview
-                                viewModel.resumeCamera()
+                                viewModel.resumeCamera() // Перезапускаем камеру
+                                delay(150) // Даем время на инициализацию
                                 frozenBitmap = null
                                 viewModel.setFrozen(false)
                             }
@@ -163,16 +168,15 @@ fun CameraScreen(
 
 @Composable
 private fun CameraPreviewView(
-    repository: ru.wert.quickloupe.data.repository.CameraRepositoryImpl,
+    previewView: android.view.View,
     modifier: Modifier = Modifier
 ) {
     AndroidView(
-        factory = { ctx ->
-            repository.getPreviewView() ?: repository.createPreviewView()
-        },
+        factory = { _ -> previewView },
         modifier = modifier,
-        update = { previewView ->
-            previewView.invalidate()
+        update = { view ->
+            // Force redraw
+            view.invalidate()
         }
     )
 }
@@ -270,4 +274,5 @@ private fun PermissionRequiredScreen(
             )
         }
     }
+
 }

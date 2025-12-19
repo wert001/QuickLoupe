@@ -1,14 +1,17 @@
 package ru.wert.quickloupe.presentation.camera
 
+import android.view.View
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import ru.wert.quickloupe.data.repository.CameraRepository
+import ru.wert.quickloupe.data.repository.CameraRepositoryImpl
 import ru.wert.quickloupe.di.CameraRepositoryFactory
 import ru.wert.quickloupe.domain.models.CameraState
 import javax.inject.Inject
@@ -19,7 +22,7 @@ class CameraViewModel @Inject constructor(
 ) : ViewModel() {
 
     // Измените на nullable или используйте опциональное значение
-    private var cameraRepository: CameraRepository? = null
+    private var cameraRepository: CameraRepositoryImpl? = null
 
     // Создайте fallback состояние, пока камера не инициализирована
     private val _cameraState = MutableStateFlow(
@@ -35,12 +38,31 @@ class CameraViewModel @Inject constructor(
     val cameraState: StateFlow<CameraState> = _cameraState.asStateFlow()
 
     fun initializeCamera(lifecycleOwner: LifecycleOwner) {
-        cameraRepository = repositoryFactory.create(lifecycleOwner)
         viewModelScope.launch {
-            cameraRepository?.initializeCamera()
-            // Обновляем состояние после инициализации
-            cameraRepository?.getCameraState()?.collect { state ->
-                _cameraState.value = state
+            try {
+                _cameraState.value = _cameraState.value.copy(isLoading = true)
+                cameraRepository = repositoryFactory.create(lifecycleOwner) as? CameraRepositoryImpl
+
+                val initialized = cameraRepository?.initializeCamera() ?: false
+
+                if (initialized) {
+                    // Подписываемся на обновления состояния
+                    viewModelScope.launch {
+                        cameraRepository?.getCameraState()?.collect { state ->
+                            _cameraState.value = state
+                        }
+                    }
+                } else {
+                    _cameraState.value = _cameraState.value.copy(
+                        isLoading = false,
+                        error = "Не удалось инициализировать камеру"
+                    )
+                }
+            } catch (e: Exception) {
+                _cameraState.value = _cameraState.value.copy(
+                    isLoading = false,
+                    error = "Ошибка инициализации: ${e.message}"
+                )
             }
         }
     }
@@ -81,8 +103,21 @@ class CameraViewModel @Inject constructor(
         cameraRepository?.clearError()
     }
 
+    fun getPreviewView(): View? {
+        return cameraRepository?.getPreviewView()
+    }
+
     override fun onCleared() {
         super.onCleared()
         cameraRepository?.release()
+    }
+
+    fun forceRecreatePreview() {
+        // Принудительно пересоздаем preview при необходимости
+        viewModelScope.launch {
+            cameraRepository?.pauseCamera()
+            delay(50)
+            cameraRepository?.resumeCamera()
+        }
     }
 }
