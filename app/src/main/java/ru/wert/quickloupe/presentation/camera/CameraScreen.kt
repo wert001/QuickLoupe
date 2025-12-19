@@ -2,7 +2,6 @@ package ru.wert.quickloupe.presentation.camera
 
 import android.Manifest
 import android.graphics.Bitmap
-import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -15,6 +14,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -34,98 +35,119 @@ fun CameraScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
 
-    // Инициализируем камеру с lifecycleOwner
-    LaunchedEffect(lifecycleOwner) {
-        viewModel.initializeCamera(lifecycleOwner)
-    }
-
     // Состояние из ViewModel
     val cameraState by viewModel.cameraState.collectAsStateWithLifecycle()
+
+    // Инициализируем камеру один раз
+    LaunchedEffect(Unit) {
+        viewModel.initializeCamera(lifecycleOwner)
+    }
 
     // Локальные состояния UI
     var frozenBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isCapturing by remember { mutableStateOf(false) }
 
-    // Репозиторий для работы с камерой (временное решение до внедрения DI)
-    val cameraRepository = remember(lifecycleOwner) {
-        ru.wert.quickloupe.data.repository.CameraRepositoryImpl(context, lifecycleOwner)
-    }
-
     // Разрешения
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
 
     Box(modifier = modifier.fillMaxSize()) {
-        if (cameraPermissionState.status.isGranted) {
-            if (cameraState.isFrozen && frozenBitmap != null) {
-                // Показываем замороженный кадр
-                FrozenFrameView(
-                    bitmap = frozenBitmap!!,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                // Показываем живой поток с камеры
-                CameraPreviewView(
-                    repository = cameraRepository,
-                    modifier = Modifier.fillMaxSize()
+        when {
+            // Проверка разрешений
+            !cameraPermissionState.status.isGranted -> {
+                PermissionRequiredScreen(
+                    permissionState = cameraPermissionState,
+                    onRequestPermission = { cameraPermissionState.launchPermissionRequest() },
+                    onBackPressed = onBackPressed
                 )
             }
 
-            // Overlay с управлением
-            CameraOverlay(
-                state = cameraState,
-                onZoomChanged = { zoom ->
-                    viewModel.setZoom(zoom)
-                },
-                onFlashToggle = {
-                    viewModel.toggleFlash()
-                },
-                onFreezeToggle = {
-                    scope.launch {
-                        if (!cameraState.isFrozen && !isCapturing) {
-                            // Захватываем кадр
-                            isCapturing = true
-                            try {
-                                delay(50)
-                                val bitmap = cameraRepository.captureFrame()
-                                if (bitmap != null) {
-                                    frozenBitmap = bitmap
-                                    viewModel.pauseCamera()
-                                    viewModel.setFrozen(true)
-                                } else {
-                                    onError("Не удалось захватить изображение")
+            // Загрузка
+            cameraState.isLoading -> {
+                LoadingIndicator()
+            }
+
+            // Камера готова
+            else -> {
+                // Временный репозиторий для preview (до рефакторинга)
+                val cameraRepository = remember(lifecycleOwner) {
+                    ru.wert.quickloupe.data.repository.CameraRepositoryImpl(context, lifecycleOwner)
+                }
+
+                // Инициализируем preview
+                LaunchedEffect(cameraRepository) {
+                    cameraRepository.initializeCamera()
+                }
+
+                if (cameraState.isFrozen && frozenBitmap != null) {
+                    // Показываем замороженный кадр
+                    FrozenFrameView(
+                        bitmap = frozenBitmap!!,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    // Показываем живой поток с камеры
+                    CameraPreviewView(
+                        repository = cameraRepository,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                // Overlay с управлением
+                CameraOverlay(
+                    state = cameraState,
+                    onZoomChanged = { zoom ->
+                        viewModel.setZoom(zoom)
+                    },
+                    onFlashToggle = {
+                        viewModel.toggleFlash()
+                    },
+                    onFreezeToggle = {
+                        scope.launch {
+                            if (!cameraState.isFrozen && !isCapturing) {
+                                // Захватываем кадр
+                                isCapturing = true
+                                try {
+                                    delay(50) // Даем время для стабилизации
+                                    val bitmap = cameraRepository.captureFrame()
+                                    if (bitmap != null) {
+                                        frozenBitmap = bitmap
+                                        viewModel.pauseCamera()
+                                        viewModel.setFrozen(true)
+                                    } else {
+                                        onError("Не удалось захватить изображение")
+                                    }
+                                } finally {
+                                    isCapturing = false
                                 }
-                            } finally {
-                                isCapturing = false
+                            } else if (cameraState.isFrozen) {
+                                // Возвращаемся к live preview
+                                viewModel.resumeCamera()
+                                frozenBitmap = null
+                                viewModel.setFrozen(false)
                             }
-                        } else if (cameraState.isFrozen) {
-                            viewModel.resumeCamera()
-                            frozenBitmap = null
-                            viewModel.setFrozen(false)
                         }
-                    }
-                },
-                onFilterToggle = {
-                    val nextFilter = when (cameraState.currentFilter) {
-                        ru.wert.quickloupe.domain.models.FilterType.NORMAL -> ru.wert.quickloupe.domain.models.FilterType.INVERTED
-                        ru.wert.quickloupe.domain.models.FilterType.INVERTED -> ru.wert.quickloupe.domain.models.FilterType.GRAYSCALE
-                        ru.wert.quickloupe.domain.models.FilterType.GRAYSCALE -> ru.wert.quickloupe.domain.models.FilterType.HIGH_CONTRAST
-                        ru.wert.quickloupe.domain.models.FilterType.HIGH_CONTRAST -> ru.wert.quickloupe.domain.models.FilterType.NORMAL
-                    }
-                    viewModel.setFilter(nextFilter)
-                },
-                onBackPressed = onBackPressed,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            PermissionRequiredScreen(
-                permissionState = cameraPermissionState,
-                onRequestPermission = { cameraPermissionState.launchPermissionRequest() },
-                onBackPressed = onBackPressed
-            )
+                    },
+                    onFilterToggle = {
+                        val nextFilter = when (cameraState.currentFilter) {
+                            ru.wert.quickloupe.domain.models.FilterType.NORMAL ->
+                                ru.wert.quickloupe.domain.models.FilterType.INVERTED
+                            ru.wert.quickloupe.domain.models.FilterType.INVERTED ->
+                                ru.wert.quickloupe.domain.models.FilterType.GRAYSCALE
+                            ru.wert.quickloupe.domain.models.FilterType.GRAYSCALE ->
+                                ru.wert.quickloupe.domain.models.FilterType.HIGH_CONTRAST
+                            ru.wert.quickloupe.domain.models.FilterType.HIGH_CONTRAST ->
+                                ru.wert.quickloupe.domain.models.FilterType.NORMAL
+                        }
+                        viewModel.setFilter(nextFilter)
+                    },
+                    onBackPressed = onBackPressed,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
 
-        // Индикатор загрузки
-        if (cameraState.isLoading || isCapturing) {
+        // Индикатор загрузки при захвате кадра
+        if (isCapturing) {
             LoadingIndicator()
         }
 
@@ -195,4 +217,57 @@ private fun ErrorMessage(
             }
         }
     )
+}
+
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+private fun PermissionRequiredScreen(
+    permissionState: PermissionState,
+    onRequestPermission: () -> Unit,
+    onBackPressed: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "Для работы приложения необходим доступ к камере",
+            color = Color.White,
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = onRequestPermission,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.White,
+                contentColor = Color.Black
+            )
+        ) {
+            Text("Разрешить доступ к камере")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        TextButton(onClick = onBackPressed) {
+            Text("Назад", color = Color.White)
+        }
+
+        // Если доступ отклонен, показываем дополнительное сообщение
+        if (permissionState.status.shouldShowRationale) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Доступ к камере необходим для использования лупы. Пожалуйста, разрешите доступ в настройках",
+                color = Color.Gray,
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
 }

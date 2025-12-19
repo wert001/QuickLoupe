@@ -70,20 +70,19 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
-    //permissions
+    //Permissions
     implementation(libs.permissions)
 
-    //firebase
+    //Firebase
     implementation(libs.firebase.analytics)
 
-    // CameraX
-
+    //CameraX
     implementation(libs.camerax.core)
     implementation(libs.camerax.camera2)
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.view)
 
-    //hilt
+    //Hilt
     kapt(libs.hilt.compiler)
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)
