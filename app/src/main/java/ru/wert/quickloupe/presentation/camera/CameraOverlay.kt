@@ -19,7 +19,7 @@ import ru.wert.quickloupe.presentation.common.components.ControlButton
 
 @Composable
 fun CameraOverlay(
-    state: ru.wert.quickloupe.domain.models.CameraState,
+    state: CameraState,
     onZoomChanged: (Float) -> Unit,
     onFlashToggle: () -> Unit,
     onFreezeToggle: () -> Unit,
