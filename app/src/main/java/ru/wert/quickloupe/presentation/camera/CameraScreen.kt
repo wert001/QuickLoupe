@@ -57,6 +57,7 @@ fun CameraScreen(
     // Разрешения
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
 
+
     // Получаем preview view из репозитория
     LaunchedEffect(cameraState.isInitialized) {
         if (cameraState.isInitialized) {
