@@ -19,7 +19,7 @@ import ru.wert.quickloupe.presentation.common.components.ControlButton
 /**
  * Оверлей с элементами управления камерой
  * @param state текущее состояние камеры
- * @param onZoomChanged обработчик изменения зума
+ * @param onZoomChanged обработчик изменения уровня зума
  * @param onZoomChangeFinished обработчик завершения изменения зума
  * @param onFlashToggle обработчик переключения вспышки
  * @param onFreezeToggle обработчик заморозки/разморозки изображения
@@ -68,6 +68,7 @@ fun CameraOverlay(
                 .align(Alignment.BottomCenter)
         )
 
+        // Вертикальный слайдер зума
         VerticalZoomSlider(
             currentZoom = state.zoomLevel,
             onZoomChanged = onZoomChanged,
@@ -151,68 +152,61 @@ private fun BottomControls(
     isRightHandMode: Boolean,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    Row(
         modifier = modifier
-            .padding(bottom = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(bottom = 48.dp, start = 16.dp, end = 16.dp) // Добавлены отступы как у верхней панели
+            .background(Color.Black.copy(alpha = 0.3f))
+            .clip(MaterialTheme.shapes.medium)
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween, // Равномерное распределение
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
+        // Левая часть: иконка переключения или пустое место
+        if (isRightHandMode) {
+            // Для правой руки: иконка слева
+            ControlButton(
+                icon = Icons.Default.ArrowForward,
+                contentDescription = "Переключить управление на левую руку",
+                onClick = onSwitchHandles
+            )
+        } else {
+            // Для левой руки: пустое место слева для баланса
+            Spacer(modifier = Modifier.size(56.dp)) // Размер как у ControlButton
+        }
+
+        // Центральная кнопка заморозки (всегда по центру)
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.Black.copy(alpha = 0.3f))
-                .clip(MaterialTheme.shapes.medium)
-                .padding(16.dp),
-            horizontalArrangement = if (isRightHandMode) {
-                // Для правой руки: иконка слева, кнопка заморозки по центру
-                Arrangement.Start
-            } else {
-                // Для левой руки: кнопка заморозки по центру, иконка спрата
-                Arrangement.End
-            },
-            verticalAlignment = Alignment.CenterVertically
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary)
+                .padding(4.dp),
+            contentAlignment = Alignment.Center
         ) {
-            if (isRightHandMode) {
-                // Иконка переключения управления (слева для правой руки)
-                ControlButton(
-                    icon = Icons.Default.ArrowForward,
-                    contentDescription = "Переключить управление на левую руку",
-                    onClick = onSwitchHandles,
-                    modifier = Modifier.padding(end = 32.dp)
-                )
-            }
-
-            // Центральная кнопка заморозки
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
-                    .padding(4.dp),
-                contentAlignment = Alignment.Center
+            IconButton(
+                onClick = onFreezeToggle,
+                modifier = Modifier.fillMaxSize()
             ) {
-                IconButton(
-                    onClick = onFreezeToggle,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Icon(
-                        imageVector = if (state.isFrozen) Icons.Default.PlayArrow else Icons.Default.Pause,
-                        contentDescription = if (state.isFrozen) "Продолжить" else "Заморозить",
-                        tint = Color.White,
-                        modifier = Modifier.size(36.dp)
-                    )
-                }
-            }
-
-            if (!isRightHandMode) {
-                // Иконка переключения управления (справа для левой руки)
-                Spacer(modifier = Modifier.width(32.dp))
-                ControlButton(
-                    icon = Icons.Default.ArrowBack,
-                    contentDescription = "Переключить управление на правую руку",
-                    onClick = onSwitchHandles,
-                    modifier = Modifier.padding(start = 32.dp)
+                Icon(
+                    imageVector = if (state.isFrozen) Icons.Default.PlayArrow else Icons.Default.Pause,
+                    contentDescription = if (state.isFrozen) "Продолжить" else "Заморозить",
+                    tint = Color.White,
+                    modifier = Modifier.size(36.dp)
                 )
             }
+        }
+
+        // Правая часть: иконка переключения или пустое место
+        if (!isRightHandMode) {
+            // Для левой руки: иконка справа
+            ControlButton(
+                icon = Icons.Default.ArrowBack,
+                contentDescription = "Переключить управление на правую руку",
+                onClick = onSwitchHandles
+            )
+        } else {
+            // Для правой руки: пустое место справа для баланса
+            Spacer(modifier = Modifier.size(56.dp)) // Размер как у ControlButton
         }
     }
 }
