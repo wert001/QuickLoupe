@@ -6,7 +6,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -16,16 +16,33 @@ import ru.wert.quickloupe.domain.models.CameraState
 import ru.wert.quickloupe.presentation.common.components.ZoomSlider
 import ru.wert.quickloupe.presentation.common.components.ControlButton
 
+/**
+ * Оверлей с элементами управления камерой
+ * @param state текущее состояние камеры
+ * @param onZoomChanged обработчик изменения зума
+ * @param onZoomChangeFinished обработчик завершения изменения зума
+ * @param onFlashToggle обработчик переключения вспышки
+ * @param onFreezeToggle обработчик заморозки/разморозки изображения
+ * @param onFilterToggle обработчик переключения фильтров
+ * @param onBackPressed обработчик нажатия кнопки "Назад"
+ * @param onSwitchHandles обработчик переключения стороны управления
+ * @param modifier модификатор компоновки
+ */
 @Composable
 fun CameraOverlay(
     state: CameraState,
     onZoomChanged: (Float) -> Unit,
+    onZoomChangeFinished: () -> Unit = {},
     onFlashToggle: () -> Unit,
     onFreezeToggle: () -> Unit,
     onFilterToggle: () -> Unit,
     onBackPressed: () -> Unit,
+    onSwitchHandles: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Состояние для определения стороны управления (по умолчанию для правой руки)
+    var isRightHandMode by remember { mutableStateOf(true) }
+
     Box(modifier = modifier) {
         // Верхняя панель
         TopControls(
@@ -37,20 +54,40 @@ fun CameraOverlay(
                 .align(Alignment.TopCenter)
         )
 
-        // Нижняя панель - УВЕЛИЧЕН padding снизу
+        // Нижняя панель
         BottomControls(
             state = state,
-            onZoomChanged = onZoomChanged,
             onFreezeToggle = onFreezeToggle,
+            onSwitchHandles = {
+                isRightHandMode = !isRightHandMode
+                onSwitchHandles()
+            },
+            isRightHandMode = isRightHandMode,
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
         )
 
-        // УБРАН индикатор зума в центре
+        // Вертикальный слайдер зума
+        VerticalZoomSlider(
+            currentZoom = state.zoomLevel,
+            onZoomChanged = onZoomChanged,
+            onZoomChangeFinished = onZoomChangeFinished,
+            isRightSide = isRightHandMode,
+            modifier = Modifier
+                .align(if (isRightHandMode) Alignment.CenterEnd else Alignment.CenterStart)
+                .padding(horizontal = 24.dp)
+        )
     }
 }
 
+/**
+ * Верхняя панель управления
+ * @param state текущее состояние камеры
+ * @param onFlashToggle обработчик переключения вспышки
+ * @param onBackPressed обработчик нажатия кнопки "Назад"
+ * @param modifier модификатор компоновки
+ */
 @Composable
 private fun TopControls(
     state: CameraState,
@@ -74,9 +111,9 @@ private fun TopControls(
             onClick = onBackPressed
         )
 
-        // Индикатор зума
+        // Индикатор зума с большей точностью
         Text(
-            text = "${state.zoomLevel.format()}x",
+            text = "${state.zoomLevel.format(2)}x",
             style = MaterialTheme.typography.titleMedium,
             color = Color.White
         )
@@ -91,36 +128,51 @@ private fun TopControls(
     }
 }
 
+/**
+ * Нижняя панель управления
+ * @param state текущее состояние камеры
+ * @param onFreezeToggle обработчик заморозки/разморозки изображения
+ * @param onSwitchHandles обработчик переключения стороны управления
+ * @param isRightHandMode режим для правой руки (true) или левой (false)
+ * @param modifier модификатор компоновки
+ */
 @Composable
 private fun BottomControls(
     state: CameraState,
-    onZoomChanged: (Float) -> Unit,
     onFreezeToggle: () -> Unit,
+    onSwitchHandles: () -> Unit,
+    isRightHandMode: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
-            .padding(bottom = 48.dp, start = 16.dp, end = 16.dp),
+            .padding(bottom = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Слайдер зума
-        ZoomSlider(
-            currentZoom = state.zoomLevel,
-            onZoomChanged = onZoomChanged,
-            modifier = Modifier
-                .fillMaxWidth(0.8f)
-                .padding(bottom = 24.dp)
-        )
-
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color.Black.copy(alpha = 0.3f))
                 .clip(MaterialTheme.shapes.medium)
                 .padding(16.dp),
-            horizontalArrangement = Arrangement.Center, // Изменено с SpaceEvenly на Center
+            horizontalArrangement = if (isRightHandMode) {
+                // Для правой руки: иконка слева, кнопка заморозки по центру
+                Arrangement.Start
+            } else {
+                // Для левой руки: кнопка заморозки по центру, иконка спрата
+                Arrangement.End
+            },
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (isRightHandMode) {
+                // Иконка переключения управления (слева для правой руки)
+                ControlButton(
+                    icon = Icons.Default.ArrowForward,
+                    contentDescription = "Переключить управление на левую руку",
+                    onClick = onSwitchHandles,
+                    modifier = Modifier.padding(end = 32.dp)
+                )
+            }
 
             // Центральная кнопка заморозки
             Box(
@@ -143,11 +195,51 @@ private fun BottomControls(
                     )
                 }
             }
+
+            if (!isRightHandMode) {
+                // Иконка переключения управления (справа для левой руки)
+                Spacer(modifier = Modifier.width(32.dp))
+                ControlButton(
+                    icon = Icons.Default.ArrowBack,
+                    contentDescription = "Переключить управление на правую руку",
+                    onClick = onSwitchHandles,
+                    modifier = Modifier.padding(start = 32.dp)
+                )
+            }
         }
     }
 }
 
-// Вспомогательная функция для форматирования чисел
+/**
+ * Вертикальный слайдер зума
+ * @param currentZoom текущий уровень зума
+ * @param onZoomChanged обработчик изменения уровня зума
+ * @param onZoomChangeFinished обработчик завершения изменения зума
+ * @param isRightSide расположение слайдера (true - справа, false - слева)
+ * @param modifier модификатор компоновки
+ */
+@Composable
+private fun VerticalZoomSlider(
+    currentZoom: Float,
+    onZoomChanged: (Float) -> Unit,
+    onZoomChangeFinished: () -> Unit = {},
+    isRightSide: Boolean,
+    modifier: Modifier = Modifier
+) {
+    ZoomSlider(
+        currentZoom = currentZoom,
+        onZoomChanged = onZoomChanged,
+        onZoomChangeFinished = onZoomChangeFinished,
+        isRightSide = isRightSide,
+        modifier = modifier
+    )
+}
+
+/**
+ * Вспомогательная функция для форматирования чисел
+ * @param digits количество знаков после запятой
+ * @return отформатированная строка
+ */
 private fun Float.format(digits: Int = 1): String {
     return "%.${digits}f".format(this)
 }

@@ -14,7 +14,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -23,6 +22,13 @@ import com.google.accompanist.permissions.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/**
+ * Основной экран камеры с элементами управления
+ * @param viewModel ViewModel для управления камерой
+ * @param modifier модификатор компоновки
+ * @param onError обработчик ошибок
+ * @param onBackPressed обработчик нажатия кнопки "Назад"
+ */
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun CameraScreen(
@@ -134,6 +140,10 @@ fun CameraScreen(
                     },
                     onFilterToggle = {}, // Пустая функция, так как функционал фильтров убран
                     onBackPressed = onBackPressed,
+                    onSwitchHandles = {
+                        // Перерисовываем UI при переключении стороны управления
+                        // Состояние управляется внутри CameraOverlay
+                    },
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -154,6 +164,11 @@ fun CameraScreen(
     }
 }
 
+/**
+ * Отображение preview с камеры
+ * @param previewView View для отображения preview
+ * @param modifier модификатор компоновки
+ */
 @Composable
 private fun CameraPreviewView(
     previewView: android.view.View,
@@ -169,6 +184,11 @@ private fun CameraPreviewView(
     )
 }
 
+/**
+ * Отображение замороженного кадра
+ * @param bitmap изображение для отображения
+ * @param modifier модификатор компоновки
+ */
 @Composable
 private fun FrozenFrameView(
     bitmap: Bitmap,
@@ -176,12 +196,15 @@ private fun FrozenFrameView(
 ) {
     Image(
         bitmap = bitmap.asImageBitmap(),
-        contentDescription = "Frozen frame",
+        contentDescription = "Замороженное изображение",
         modifier = modifier,
         contentScale = ContentScale.FillBounds
     )
 }
 
+/**
+ * Индикатор загрузки
+ */
 @Composable
 private fun LoadingIndicator() {
     Box(
@@ -194,6 +217,11 @@ private fun LoadingIndicator() {
     }
 }
 
+/**
+ * Сообщение об ошибке
+ * @param message текст ошибки
+ * @param onDismiss обработчик закрытия сообщения
+ */
 @Composable
 private fun ErrorMessage(
     message: String,

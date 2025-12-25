@@ -21,6 +21,10 @@ import ru.wert.quickloupe.domain.models.FilterType
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
+/**
+ * Реализация репозитория для работы с камерой
+ * Использует CameraX для управления камерой устройства
+ */
 class CameraRepositoryImpl(
     private val context: Context,
     private val lifecycleOwner: LifecycleOwner
@@ -28,7 +32,7 @@ class CameraRepositoryImpl(
     companion object {
         private const val TAG = "CameraRepository"
         const val MIN_ZOOM = 1.0f
-        const val MAX_ZOOM = 10.0f
+        const val MAX_ZOOM = 5.0f  // Изменено максимальное увеличение до 5x
         const val DEFAULT_ZOOM = 1.0f
     }
 
@@ -47,6 +51,10 @@ class CameraRepositoryImpl(
     private var previewView: PreviewView? = null
     private var isCameraBound: Boolean = false
 
+    /**
+     * Инициализация камеры
+     * @return true если инициализация прошла успешно, false в случае ошибки
+     */
     override suspend fun initializeCamera(): Boolean {
         return withContext(Dispatchers.IO) {
             try {
@@ -72,6 +80,9 @@ class CameraRepositoryImpl(
         }
     }
 
+    /**
+     * Привязка use cases к камере
+     */
     private fun bindCameraUseCases() {
         val cameraProvider = cameraProvider ?: run {
             _state.update { it.copy(
@@ -107,8 +118,8 @@ class CameraRepositoryImpl(
                 preview
             )
 
-            // Настройка зума
-            camera?.cameraControl?.setZoomRatio(_state.value.zoomLevel)
+            // Настройка зума с учетом нового максимального значения
+            camera?.cameraControl?.setZoomRatio(_state.value.zoomLevel.coerceIn(MIN_ZOOM, MAX_ZOOM))
 
             // Восстанавливаем состояние вспышки
             if (_state.value.isFlashEnabled) {
@@ -132,6 +143,9 @@ class CameraRepositoryImpl(
         }
     }
 
+    /**
+     * Отключение всех use cases от камеры
+     */
     private fun unbindCamera() {
         try {
             cameraProvider?.unbindAll()
@@ -143,6 +157,9 @@ class CameraRepositoryImpl(
         }
     }
 
+    /**
+     * Приостановка работы камеры
+     */
     override suspend fun pauseCamera() {
         withContext(Dispatchers.Main) {
             try {
@@ -153,6 +170,9 @@ class CameraRepositoryImpl(
         }
     }
 
+    /**
+     * Возобновление работы камеры
+     */
     override suspend fun resumeCamera() {
         withContext(Dispatchers.Main) {
             try {
@@ -165,6 +185,10 @@ class CameraRepositoryImpl(
         }
     }
 
+    /**
+     * Установка уровня зума
+     * @param zoomLevel уровень зума от 1.0f до 5.0f
+     */
     override suspend fun setZoom(zoomLevel: Float) {
         val clampedZoom = zoomLevel.coerceIn(MIN_ZOOM, MAX_ZOOM)
 
@@ -178,6 +202,10 @@ class CameraRepositoryImpl(
         }
     }
 
+    /**
+     * Переключение вспышки
+     * @return новое состояние вспышки (true - включена, false - выключена)
+     */
     override suspend fun toggleFlash(): Boolean {
         return try {
             val camera = camera ?: return false
@@ -195,25 +223,39 @@ class CameraRepositoryImpl(
         }
     }
 
+    /**
+     * Заморозка/разморозка изображения
+     * @param frozen true - заморозить, false - разморозить
+     */
     override fun setFrozen(frozen: Boolean) {
         _state.update { it.copy(isFrozen = frozen) }
     }
 
+    /**
+     * Установка фильтра изображения
+     * @param filterType тип фильтра
+     */
     override suspend fun setFilter(filterType: FilterType) {
         // Здесь будет применение фильтров к изображению
         _state.update { it.copy(currentFilter = filterType) }
     }
 
+    /**
+     * Захват текущего кадра
+     * @return Bitmap захваченного изображения или null в случае ошибки
+     */
     override fun captureFrame(): Bitmap? {
         return try {
-            // Вместо Thread.sleep используем небольшую паузу
-            // или лучше - сделать это асинхронно
             previewView?.bitmap?.copy(Bitmap.Config.ARGB_8888, false)
         } catch (e: Exception) {
             null
         }
     }
 
+    /**
+     * Создание preview view для отображения потока с камеры
+     * @return созданный PreviewView
+     */
     fun createPreviewView(): PreviewView {
         previewView = PreviewView(context).apply {
             layoutParams = android.view.ViewGroup.LayoutParams(
@@ -226,12 +268,22 @@ class CameraRepositoryImpl(
         return previewView!!
     }
 
+    /**
+     * Получение preview view
+     * @return PreviewView или null если не создан
+     */
     fun getPreviewView(): PreviewView? = previewView
 
+    /**
+     * Очистка сообщения об ошибке
+     */
     override fun clearError() {
         _state.update { it.copy(error = null) }
     }
 
+    /**
+     * Освобождение ресурсов камеры
+     */
     override fun release() {
         try {
             unbindCamera()
