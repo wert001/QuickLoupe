@@ -132,19 +132,7 @@ fun CameraScreen(
                             }
                         }
                     },
-                    onFilterToggle = {
-                        val nextFilter = when (cameraState.currentFilter) {
-                            ru.wert.quickloupe.domain.models.FilterType.NORMAL ->
-                                ru.wert.quickloupe.domain.models.FilterType.INVERTED
-                            ru.wert.quickloupe.domain.models.FilterType.INVERTED ->
-                                ru.wert.quickloupe.domain.models.FilterType.GRAYSCALE
-                            ru.wert.quickloupe.domain.models.FilterType.GRAYSCALE ->
-                                ru.wert.quickloupe.domain.models.FilterType.HIGH_CONTRAST
-                            ru.wert.quickloupe.domain.models.FilterType.HIGH_CONTRAST ->
-                                ru.wert.quickloupe.domain.models.FilterType.NORMAL
-                        }
-                        viewModel.setFilter(nextFilter)
-                    },
+                    onFilterToggle = {}, // Пустая функция, так как функционал фильтров убран
                     onBackPressed = onBackPressed,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -221,58 +209,4 @@ private fun ErrorMessage(
             }
         }
     )
-}
-
-@OptIn(ExperimentalPermissionsApi::class)
-@Composable
-private fun PermissionRequiredScreen(
-    permissionState: PermissionState,
-    onRequestPermission: () -> Unit,
-    onBackPressed: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = "Для работы приложения необходим доступ к камере",
-            color = Color.White,
-            style = MaterialTheme.typography.titleMedium,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Button(
-            onClick = onRequestPermission,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.White,
-                contentColor = Color.Black
-            )
-        ) {
-            Text("Разрешить доступ к камере")
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        TextButton(onClick = onBackPressed) {
-            Text("Назад", color = Color.White)
-        }
-
-        // Если доступ отклонен, показываем дополнительное сообщение
-        if (permissionState.status.shouldShowRationale) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Доступ к камере необходим для использования лупы. Пожалуйста, разрешите доступ в настройках",
-                color = Color.Gray,
-                style = MaterialTheme.typography.bodySmall,
-                textAlign = TextAlign.Center
-            )
-        }
-    }
-
 }

@@ -6,14 +6,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import ru.wert.quickloupe.domain.models.CameraState
-import ru.wert.quickloupe.domain.models.FilterType
 import ru.wert.quickloupe.presentation.common.components.ZoomSlider
 import ru.wert.quickloupe.presentation.common.components.ControlButton
 
@@ -38,24 +37,17 @@ fun CameraOverlay(
                 .align(Alignment.TopCenter)
         )
 
-        // Нижняя панель
+        // Нижняя панель - УВЕЛИЧЕН padding снизу
         BottomControls(
             state = state,
             onZoomChanged = onZoomChanged,
             onFreezeToggle = onFreezeToggle,
-            onFilterToggle = onFilterToggle,
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
         )
 
-        // Индикатор зума в центре
-        if (state.zoomLevel > 1.5f) {
-            ZoomIndicator(
-                zoomLevel = state.zoomLevel,
-                modifier = Modifier.align(Alignment.Center)
-            )
-        }
+        // УБРАН индикатор зума в центре
     }
 }
 
@@ -104,7 +96,6 @@ private fun BottomControls(
     state: CameraState,
     onZoomChanged: (Float) -> Unit,
     onFreezeToggle: () -> Unit,
-    onFilterToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -121,23 +112,15 @@ private fun BottomControls(
                 .padding(bottom = 24.dp)
         )
 
-        // Основные кнопки управления
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color.Black.copy(alpha = 0.3f))
                 .clip(MaterialTheme.shapes.medium)
                 .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+            horizontalArrangement = Arrangement.Center, // Изменено с SpaceEvenly на Center
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Кнопка фильтра
-            ControlButton(
-                icon = Icons.Default.ColorLens,
-                contentDescription = "Фильтр",
-                onClick = onFilterToggle,
-                isActive = state.currentFilter != FilterType.NORMAL
-            )
 
             // Центральная кнопка заморозки
             Box(
@@ -160,30 +143,7 @@ private fun BottomControls(
                     )
                 }
             }
-
-            // Заглушка для симметрии
-            Box(modifier = Modifier.size(56.dp))
         }
-    }
-}
-
-@Composable
-private fun ZoomIndicator(
-    zoomLevel: Float,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .background(Color.Black.copy(alpha = 0.6f))
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .clip(MaterialTheme.shapes.medium),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "Увеличение: ${zoomLevel.format()}x",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.White
-        )
     }
 }
 

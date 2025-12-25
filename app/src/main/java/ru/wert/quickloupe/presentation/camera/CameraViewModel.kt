@@ -89,10 +89,6 @@ class CameraViewModel @Inject constructor(
         withRepository { it.resumeCamera() }
     }
 
-    fun setFilter(filterType: ru.wert.quickloupe.domain.models.FilterType) {
-        withRepository { it.setFilter(filterType) }
-    }
-
     fun captureFrame() = cameraRepository?.captureFrame()
 
     fun setFrozen(frozen: Boolean) {
