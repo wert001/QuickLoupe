@@ -1,6 +1,7 @@
 package ru.wert.quickloupe.presentation.common.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -35,15 +36,17 @@ fun ZoomSlider(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier,
+        modifier = modifier
+            .padding(horizontal = 8.dp, vertical = 12.dp), // Отступы вокруг слайдера
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // Индикатор максимума (5x) - сверху
         Text(
             text = "5x",
             style = MaterialTheme.typography.bodySmall,
-            color = Color.White
+            color = Color.White,
+            modifier = Modifier.padding(bottom = 8.dp)
         )
 
         // Кастомный вертикальный слайдер
@@ -53,15 +56,16 @@ fun ZoomSlider(
             onValueChangeFinished = onZoomChangeFinished,
             valueRange = 1f..5f,
             modifier = Modifier
-                .height(280.dp) // Длина слайдера
-                .width(60.dp)   // Ширина для удобного касания
+                .height(210.dp)
+                .width(56.dp)
         )
 
         // Индикатор минимума (1x) - снизу
         Text(
             text = "1x",
             style = MaterialTheme.typography.bodySmall,
-            color = Color.White
+            color = Color.White,
+            modifier = Modifier.padding(top = 8.dp)
         )
     }
 }
@@ -76,9 +80,11 @@ private fun CustomVerticalSlider(
     onValueChangeFinished: () -> Unit = {},
     valueRange: ClosedFloatingPointRange<Float> = 1f..5f,
     modifier: Modifier = Modifier,
-    trackHeight: Dp = 280.dp,
-    thumbRadius: Dp = 16.dp,
-    trackWidth: Dp = 6.dp
+    trackHeight: Dp = 210.dp,
+    thumbRadius: Dp = 14.dp,
+    trackWidth: Dp = 6.dp,
+    thumbWidth: Dp = 32.dp, // Ширина горизонтальной риски
+    thumbHeight: Dp = 6.dp  // Высота горизонтальной риски
 ) {
     // Состояние для хранения размера компонента
     var componentSize by remember { mutableStateOf(Size.Zero) }
@@ -150,48 +156,53 @@ private fun CustomVerticalSlider(
             val height = size.height
             val centerX = width / 2
 
-            // Рисуем фон трека
+            // Рисуем фон трека (полупрозрачный)
             drawLine(
-                color = Color.White.copy(alpha = 0.3f),
+                color = Color.White.copy(alpha = 0.2f),
                 start = Offset(centerX, 0f),
                 end = Offset(centerX, height),
                 strokeWidth = trackWidth.toPx(),
                 cap = StrokeCap.Round
             )
 
-            // Рисуем активную часть трека (сверху вниз)
-            val activeHeight = height * (1 - normalizedValue) // Инвертируем для вертикального направления
+            // Рисуем активную часть трека (снизу вверх - от 1x до текущего значения)
+            // Теперь активная часть - это пройденный путь от 1x до текущего значения
+            val activeHeight = height * normalizedValue // Не инвертируем - активная часть снизу вверх
+            val activeStartY = height - activeHeight // Начинаем снизу
+
             drawLine(
-                color = colorScheme.primary,
-                start = Offset(centerX, 0f),
-                end = Offset(centerX, activeHeight),
+                color = colorScheme.primary.copy(alpha = 0.5f),
+                start = Offset(centerX, activeStartY),
+                end = Offset(centerX, height),
                 strokeWidth = trackWidth.toPx(),
                 cap = StrokeCap.Round
             )
 
-            // Рисуем ползунок
-            val thumbY = activeHeight
-            drawCircle(
-                color = if (isDragging) colorScheme.primary.copy(alpha = 0.8f)
-                else colorScheme.primary,
-                radius = thumbRadius.toPx(),
-                center = Offset(centerX, thumbY)
+            // Рисуем горизонтальную риску вместо круга
+            val thumbY = height - activeHeight // Позиция риски (центр)
+            val thumbHalfWidth = thumbWidth.toPx() / 2
+            val thumbHalfHeight = thumbHeight.toPx() / 2
+
+            // Основная часть риски
+            drawRect(
+                color = colorScheme.primary,
+                topLeft = Offset(centerX - thumbHalfWidth, thumbY - thumbHalfHeight),
+                size = androidx.compose.ui.geometry.Size(thumbWidth.toPx(), thumbHeight.toPx())
             )
 
-            // Внешний контур ползунка
-            drawCircle(
-                color = Color.White,
-                radius = thumbRadius.toPx() + 1.dp.toPx(),
-                center = Offset(centerX, thumbY),
-                style = Stroke(width = 2.dp.toPx())
-            )
-
-            // Внутренний белый круг для лучшей видимости
-            drawCircle(
-                color = Color.White,
-                radius = thumbRadius.toPx() * 0.4f,
-                center = Offset(centerX, thumbY)
-            )
+            // Дополнительная индикация при перетаскивании
+            if (isDragging) {
+                // Полупрозрачный фон под риской
+                drawRect(
+                    color = colorScheme.primary.copy(alpha = 0.3f),
+                    topLeft = Offset(centerX - thumbHalfWidth * 1.5f, thumbY - thumbHalfHeight * 2f),
+                    size = androidx.compose.ui.geometry.Size(
+                        thumbWidth.toPx() * 1.5f,
+                        thumbHeight.toPx() * 4f
+                    ),
+                    style = Stroke(width = 1.dp.toPx())
+                )
+            }
         }
     }
 }
@@ -206,11 +217,14 @@ private fun calculateValueFromPosition(
 ): Float {
     if (totalHeight <= 0) return valueRange.start
 
-    // Инвертируем Y-координату (0 = максимум, totalHeight = минимум)
+    // Больше не инвертируем Y-координату
+    // Теперь: 0 (верх) = 5x, totalHeight (низ) = 1x
+    // Но мы хотим чтобы активная часть была снизу вверх
     val normalized = 1 - (yPosition / totalHeight).coerceIn(0f, 1f)
 
     // Плавное значение без округления до шагов
     return valueRange.start + normalized * (valueRange.endInclusive - valueRange.start)
 }
+
 
 

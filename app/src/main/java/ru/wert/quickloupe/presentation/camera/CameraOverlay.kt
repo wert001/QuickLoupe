@@ -68,15 +68,22 @@ fun CameraOverlay(
                 .align(Alignment.BottomCenter)
         )
 
-        // Вертикальный слайдер зума
         VerticalZoomSlider(
             currentZoom = state.zoomLevel,
             onZoomChanged = onZoomChanged,
             onZoomChangeFinished = onZoomChangeFinished,
             isRightSide = isRightHandMode,
             modifier = Modifier
-                .align(if (isRightHandMode) Alignment.CenterEnd else Alignment.CenterStart)
-                .padding(horizontal = 24.dp)
+                .align(if (isRightHandMode) {
+                    Alignment.BottomEnd
+                } else {
+                    Alignment.BottomStart
+                })
+                .padding(
+                    bottom = 160.dp, // Сдвиг вниз к нижней панели
+                    end = if (isRightHandMode) 20.dp else 0.dp, // Отступ от правого края
+                    start = if (!isRightHandMode) 20.dp else 0.dp // Отступ от левого края
+                )
         )
     }
 }
@@ -243,3 +250,4 @@ private fun VerticalZoomSlider(
 private fun Float.format(digits: Int = 1): String {
     return "%.${digits}f".format(this)
 }
+
