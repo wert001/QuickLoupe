@@ -14,7 +14,6 @@ class CameraStateTest {
         val state = CameraState()
 
         assertEquals(1.0f, state.zoomLevel)
-        assertEquals(FilterType.NORMAL, state.currentFilter)
         assertFalse(state.isFlashEnabled)
         assertFalse(state.isFrozen)
         assertTrue(state.isLoading)
@@ -28,7 +27,6 @@ class CameraStateTest {
 
         val modified = original.copy(
             zoomLevel = 2.5f,
-            currentFilter = FilterType.GRAYSCALE,
             isFlashEnabled = true,
             isFrozen = true,
             isLoading = false,
@@ -37,7 +35,6 @@ class CameraStateTest {
         )
 
         assertEquals(2.5f, modified.zoomLevel)
-        assertEquals(FilterType.GRAYSCALE, modified.currentFilter)
         assertTrue(modified.isFlashEnabled)
         assertTrue(modified.isFrozen)
         assertFalse(modified.isLoading)
@@ -46,7 +43,6 @@ class CameraStateTest {
 
         // Проверяем, что оригинал не изменился
         assertEquals(1.0f, original.zoomLevel)
-        assertEquals(FilterType.NORMAL, original.currentFilter)
         assertFalse(original.isFlashEnabled)
         assertFalse(original.isFrozen)
         assertTrue(original.isLoading)

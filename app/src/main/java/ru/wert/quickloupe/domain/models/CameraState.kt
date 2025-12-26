@@ -6,6 +6,5 @@ data class CameraState(
     val isFlashEnabled: Boolean = false,
     val isFrozen: Boolean = false,
     val zoomLevel: Float = 1.0f,
-    val currentFilter: FilterType = FilterType.NORMAL,
     val error: String? = null
 )
