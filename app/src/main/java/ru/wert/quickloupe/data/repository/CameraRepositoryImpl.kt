@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import ru.wert.quickloupe.domain.models.CameraState
-import ru.wert.quickloupe.domain.models.FilterType
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -231,14 +230,6 @@ class CameraRepositoryImpl(
         _state.update { it.copy(isFrozen = frozen) }
     }
 
-    /**
-     * Установка фильтра изображения
-     * @param filterType тип фильтра
-     */
-    override suspend fun setFilter(filterType: FilterType) {
-        // Здесь будет применение фильтров к изображению
-        _state.update { it.copy(currentFilter = filterType) }
-    }
 
     /**
      * Захват текущего кадра

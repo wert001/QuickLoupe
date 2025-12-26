@@ -28,7 +28,6 @@ class CameraViewModel @Inject constructor(
     private val _cameraState = MutableStateFlow(
         CameraState(
             isFrozen = false,
-            currentFilter = ru.wert.quickloupe.domain.models.FilterType.NORMAL,
             zoomLevel = 1.0f,
             isFlashEnabled = false,
             isLoading = true, // Показываем загрузку до инициализации

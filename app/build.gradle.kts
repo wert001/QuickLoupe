@@ -59,11 +59,6 @@ android {
         }
     }
 
-//    testOptions {
-//        unitTests.all {
-//            useJUnitPlatform()
-//        }
-//    }
 }
 
 dependencies {
@@ -83,8 +78,6 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-
-
 
     //Permissions
     implementation(libs.permissions)
@@ -110,11 +103,17 @@ dependencies {
     testImplementation(libs.junit) // Это теперь junit-jupiter-api
     testImplementation(libs.junit.jupiter.engine) // JUnit 5 engine
     testImplementation(libs.junit.jupiter.params) // JUnit 5 engine
-//    testImplementation(libs.junit.vintage.engine) // Для поддержки JUnit 4 тестов, если есть
 
-    // MockK для unit тестов
-    testImplementation(libs.mockk)
-    testImplementation(libs.mockk.android) // Для Android-специфичных тестов
+    debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    // Mockito для unit тестов
+    testImplementation(libs.mockito.core)
+    androidTestImplementation(libs.mockito.jupiter)
+
+    //Для андроид тестов
+    androidTestImplementation(libs.mockito.android)
+
 
     // Интеграционные тесты
     androidTestImplementation(libs.androidx.junit)
