@@ -1,23 +1,26 @@
 [versions]
 agp = "8.13.2"
 kotlin = "2.0.21"
-coreKtx = "1.10.1"
-junit = "4.13.2"
-junitVersion = "1.1.5"
-espressoCore = "3.5.1"
-lifecycleRuntimeKtx = "2.6.1"
-activityCompose = "1.8.0"
-composeBom = "2024.09.00"
+coreKtx = "1.17.0"
+junit-jupiter = "5.11.4"
+junitVersion = "1.5.10"
+espressoCore = "3.7.0"
+lifecycleRuntimeKtx = "2.10.0"
+activityCompose = "1.12.2"
+composeBom = "2025.12.01"
 camerax = "1.5.2"
 hilt = "2.57.2"
 ksp = "2.0.21-1.0.27"
 googleGmsGoogleServices = "4.4.4"
 firebaseAnalytics = "23.0.0"
-permissions = "0.32.0"
+permissions = "0.37.3"
+mockk = "1.14.7"
+coreKtxVersion = "1.7.0"
+
+kotlinx-coroutines-test = "1.10.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
-junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
@@ -36,6 +39,21 @@ camerax-camera2 = {group = "androidx.camera", name = "camera-camera2", version.r
 camerax-lifecycle = {group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax"}
 camerax-view = {group = "androidx.camera", name = "camera-view", version.ref = "camerax"}
 
+#тестирование
+androidx-test-core-ktx = { group = "androidx.test", name = "core-ktx", version.ref = "coreKtxVersion" }
+
+# Junit5
+junit = { group = "org.junit.jupiter", name = "junit-jupiter-api", version.ref = "junit-jupiter" }
+junit-jupiter-engine = { group = "org.junit.jupiter", name = "junit-jupiter-engine", version.ref = "junit-jupiter" }
+junit-jupiter-params = { group = "org.junit.jupiter", name = "junit-jupiter-params", version.ref = "junit-jupiter" }
+junit-vintage-engine = { group = "org.junit.vintage", name = "junit-vintage-engine", version.ref = "junit-jupiter" }
+
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinx-coroutines-test" }
+
+# MockK
+mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+mockk-android = { group = "io.mockk", name = "mockk-android", version.ref = "mockk" }
+
 #Permissions
 permissions =  { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "permissions" }
 
@@ -44,10 +62,10 @@ hilt-android =  { group = "com.google.dagger", name = "hilt-android", version.re
 hilt-compiler =  { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
 #hilt-navigation =  { group = "com.google.dagger", name = "hilt-android-navigation", version.ref = "hilt" }
 hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version = "1.3.0" }
-hilt-compiler-x = { group = "androidx.hilt", name = "hilt-compiler", version = "1.3.0" }
 
 #firebase
 firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics", version.ref = "firebaseAnalytics" }
+
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

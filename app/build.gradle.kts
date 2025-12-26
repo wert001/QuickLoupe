@@ -51,6 +51,19 @@ android {
     buildFeatures {
         compose = true
     }
+
+    tasks.withType<Test> {
+        useJUnitPlatform() // Включаем JUnit 5 Platform
+        testLogging {
+            events("passed", "skipped", "failed")
+        }
+    }
+
+//    testOptions {
+//        unitTests.all {
+//            useJUnitPlatform()
+//        }
+//    }
 }
 
 dependencies {
@@ -62,6 +75,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.test.core.ktx)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -69,6 +83,8 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+
 
     //Permissions
     implementation(libs.permissions)
@@ -86,8 +102,29 @@ dependencies {
     kapt(libs.hilt.compiler)
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)
-//    implementation(libs.hilt.compiler.x)
 
     implementation("androidx.compose.material:material-icons-extended")
+
+    //ТЕСТИРОВАНИЕ
+    // JUnit 5 (Jupiter) для unit тестов
+    testImplementation(libs.junit) // Это теперь junit-jupiter-api
+    testImplementation(libs.junit.jupiter.engine) // JUnit 5 engine
+    testImplementation(libs.junit.jupiter.params) // JUnit 5 engine
+//    testImplementation(libs.junit.vintage.engine) // Для поддержки JUnit 4 тестов, если есть
+
+    // MockK для unit тестов
+    testImplementation(libs.mockk)
+    testImplementation(libs.mockk.android) // Для Android-специфичных тестов
+
+    // Интеграционные тесты
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+
+    debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
