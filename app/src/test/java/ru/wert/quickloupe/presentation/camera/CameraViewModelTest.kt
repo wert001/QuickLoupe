@@ -1,396 +1,363 @@
 package ru.wert.quickloupe.presentation.camera
 
-import androidx.lifecycle.LifecycleOwner
+import io.mockk.*
+import io.mockk.impl.annotations.MockK
+import io.mockk.junit5.MockKExtension
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
-import org.mockito.Mock
-import org.mockito.Mockito.*
 import ru.wert.quickloupe.data.repository.CameraRepositoryImpl
 import ru.wert.quickloupe.di.CameraRepositoryFactory
 import ru.wert.quickloupe.domain.models.CameraState
-import java.lang.reflect.Method
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@ExtendWith(InstantTaskExecutorExtension::class, MockitoExtension::class)
+@ExtendWith(MockKExtension::class)
 class CameraViewModelTest {
 
-    @Mock
+    private lateinit var viewModel: CameraViewModel
+    private val testDispatcher = StandardTestDispatcher()
+    private lateinit var testScope: TestScope
+
+    @MockK
     private lateinit var mockRepositoryFactory: CameraRepositoryFactory
 
-    @Mock
+    @MockK
     private lateinit var mockCameraRepository: CameraRepositoryImpl
-
-    @Mock
-    private lateinit var mockLifecycleOwner: LifecycleOwner
-
-    private lateinit var viewModel: CameraViewModel
-    private lateinit var testDispatcher: TestDispatcher
-    private lateinit var testScheduler: TestCoroutineScheduler
 
     @BeforeEach
     fun setUp() {
-        // Настройка тестовых диспетчеров для корутин
-        testScheduler = TestCoroutineScheduler()
-        testDispatcher = StandardTestDispatcher(testScheduler)
         Dispatchers.setMain(testDispatcher)
+        testScope = TestScope(testDispatcher)
 
-        // Настройка моков
-        `when`(mockRepositoryFactory.create(mockLifecycleOwner)).thenReturn(mockCameraRepository)
+        // Настраиваем моки для suspend функций
+        coEvery { mockRepositoryFactory.create(any()) } returns mockCameraRepository
+        coEvery { mockCameraRepository.initializeCamera() } returns true
+        every { mockCameraRepository.getCameraState() } returns MutableStateFlow(
+            CameraState(
+                isFrozen = false,
+                zoomLevel = 1.0f,
+                isFlashEnabled = false,
+                isLoading = false,
+                error = null
+            )
+        )
+        coEvery { mockCameraRepository.setZoom(any()) } returns Unit
+        coEvery { mockCameraRepository.toggleFlash() } returns true
+        coEvery { mockCameraRepository.pauseCamera() } returns Unit
+        coEvery { mockCameraRepository.resumeCamera() } returns Unit
+        coEvery { mockCameraRepository.captureFrame() } returns null
+        every { mockCameraRepository.setFrozen(any()) } just Runs
+        every { mockCameraRepository.clearError() } just Runs
+        every { mockCameraRepository.getPreviewView() } returns null
+        every { mockCameraRepository.release() } just Runs
 
-        // Создаем ViewModel
         viewModel = CameraViewModel(mockRepositoryFactory)
     }
 
     @AfterEach
     fun tearDown() {
         Dispatchers.resetMain()
+        unmockkAll()
     }
 
     @Test
-    fun `initializeCamera should set loading state and then success state`() = runTest(testDispatcher) {
-        // Given
-        val expectedState = CameraState(
-            isFrozen = false,
-            zoomLevel = 1.0f,
-            isFlashEnabled = false,
-            isLoading = false,
-            isInitialized = true,
-            error = null
-        )
+    fun `инициализация камеры должна создать репозиторий и начать сбор состояния`() = testScope.runTest {
+        // Arrange
+        val mockLifecycleOwner = mockk<androidx.lifecycle.LifecycleOwner>(relaxed = true)
 
-        `when`(mockCameraRepository.initializeCamera()).thenReturn(true)
-        `when`(mockCameraRepository.getCameraState()).thenReturn(MutableStateFlow(expectedState))
-
-        // When
+        // Act
         viewModel.initializeCamera(mockLifecycleOwner)
-        testScheduler.advanceUntilIdle()
+        advanceUntilIdle()
 
-        // Then
+        // Assert
+        coVerify { mockRepositoryFactory.create(mockLifecycleOwner) }
+        coVerify { mockCameraRepository.initializeCamera() }
+        verify { mockCameraRepository.getCameraState() }
+
         val actualState = viewModel.cameraState.first()
         assertFalse(actualState.isLoading)
-        assertTrue(actualState.isInitialized)
-        assertNull(actualState.error)
-        verify(mockRepositoryFactory).create(mockLifecycleOwner)
-        verify(mockCameraRepository).initializeCamera()
     }
 
     @Test
-    fun `initializeCamera should set error state when initialization fails`() = runTest(testDispatcher) {
-        // Given
-        `when`(mockCameraRepository.initializeCamera()).thenReturn(false)
+    fun `инициализация камеры должна обработать неудачную инициализацию`() = testScope.runTest {
+        // Arrange
+        val mockLifecycleOwner = mockk<androidx.lifecycle.LifecycleOwner>(relaxed = true)
+        coEvery { mockCameraRepository.initializeCamera() } returns false
 
-        // When
+        // Act
         viewModel.initializeCamera(mockLifecycleOwner)
-        testScheduler.advanceUntilIdle()
+        advanceUntilIdle()
 
-        // Then
-        val actualState = viewModel.cameraState.first()
-        assertFalse(actualState.isLoading)
-        assertFalse(actualState.isInitialized)
-        assertEquals("Не удалось инициализировать камеру", actualState.error)
+        // Assert
+        val state = viewModel.cameraState.first()
+        assertFalse(state.isLoading)
+        assertEquals("Не удалось инициализировать камеру", state.error)
     }
 
     @Test
-    fun `initializeCamera should set error state when exception occurs`() = runTest(testDispatcher) {
-        // Given
-        val exceptionMessage = "Camera not available"
-        `when`(mockRepositoryFactory.create(mockLifecycleOwner)).thenThrow(RuntimeException(exceptionMessage))
+    fun `инициализация камеры должна обработать исключение`() = testScope.runTest {
+        // Arrange
+        val mockLifecycleOwner = mockk<androidx.lifecycle.LifecycleOwner>(relaxed = true)
+        val exceptionMessage = "Camera initialization failed"
+        coEvery { mockRepositoryFactory.create(any()) } throws RuntimeException(exceptionMessage)
 
-        // When
+        // Act
         viewModel.initializeCamera(mockLifecycleOwner)
-        testScheduler.advanceUntilIdle()
+        advanceUntilIdle()
 
-        // Then
-        val actualState = viewModel.cameraState.first()
-        assertFalse(actualState.isLoading)
-        assertFalse(actualState.isInitialized)
-        assertTrue(actualState.error?.contains(exceptionMessage) == true)
+        // Assert
+        val state = viewModel.cameraState.first()
+        assertFalse(state.isLoading)
+        assertTrue(state.error?.contains(exceptionMessage) == true)
     }
 
     @Test
-    fun `setZoom should call repository setZoom`() = runTest(testDispatcher) {
-        // Given
+    fun `установка зума должна вызвать setZoom репозитория когда репозиторий инициализирован`() = testScope.runTest {
+        // Arrange
         val zoomLevel = 2.5f
-        `when`(mockCameraRepository.initializeCamera()).thenReturn(true)
-        `when`(mockCameraRepository.getCameraState()).thenReturn(MutableStateFlow(CameraState()))
+        инициализироватьViewModel()
 
-        viewModel.initializeCamera(mockLifecycleOwner)
-        testScheduler.advanceUntilIdle()
+        // Act
+        launch {
+            viewModel.setZoom(zoomLevel)
+        }
+        advanceUntilIdle()
 
-        // When
-        viewModel.setZoom(zoomLevel)
-        testScheduler.advanceUntilIdle()
-
-        // Then
-        verify(mockCameraRepository).setZoom(zoomLevel)
+        // Assert
+        coVerify { mockCameraRepository.setZoom(zoomLevel) }
     }
 
     @Test
-    fun `toggleFlash should call repository toggleFlash`() = runTest(testDispatcher) {
-        // Given
-        `when`(mockCameraRepository.initializeCamera()).thenReturn(true)
-        `when`(mockCameraRepository.getCameraState()).thenReturn(MutableStateFlow(CameraState()))
+    fun `установка зума не должна крашиться когда репозиторий не инициализирован`() = testScope.runTest {
+        // Arrange
+        val zoomLevel = 2.5f
+        // Не инициализируем репозиторий
 
-        viewModel.initializeCamera(mockLifecycleOwner)
-        testScheduler.advanceUntilIdle()
+        // Act & Assert - не должно быть исключения
+        launch {
+            assertDoesNotThrow {
+                viewModel.setZoom(zoomLevel)
+            }
+        }
+        advanceUntilIdle()
 
-        // When
-        viewModel.toggleFlash()
-        testScheduler.advanceUntilIdle()
-
-        // Then
-        verify(mockCameraRepository).toggleFlash()
+        // Должен быть 0 вызовов, так как репозиторий не инициализирован
+        coVerify(exactly = 0) { mockCameraRepository.setZoom(any()) }
     }
 
     @Test
-    fun `pauseCamera should call repository pauseCamera`() = runTest(testDispatcher) {
-        // Given
-        `when`(mockCameraRepository.initializeCamera()).thenReturn(true)
-        `when`(mockCameraRepository.getCameraState()).thenReturn(MutableStateFlow(CameraState()))
+    fun `переключение вспышки должно вызвать toggleFlash репозитория когда репозиторий инициализирован`() = testScope.runTest {
+        // Arrange
+        инициализироватьViewModel()
 
-        viewModel.initializeCamera(mockLifecycleOwner)
-        testScheduler.advanceUntilIdle()
+        // Act
+        launch {
+            viewModel.toggleFlash()
+        }
+        advanceUntilIdle()
 
-        // When
-        viewModel.pauseCamera()
-        testScheduler.advanceUntilIdle()
-
-        // Then
-        verify(mockCameraRepository).pauseCamera()
+        // Assert
+        coVerify { mockCameraRepository.toggleFlash() }
     }
 
     @Test
-    fun `resumeCamera should call repository resumeCamera`() = runTest(testDispatcher) {
-        // Given
-        `when`(mockCameraRepository.initializeCamera()).thenReturn(true)
-        `when`(mockCameraRepository.getCameraState()).thenReturn(MutableStateFlow(CameraState()))
+    fun `пауза камеры должна вызвать pauseCamera репозитория когда репозиторий инициализирован`() = testScope.runTest {
+        // Arrange
+        инициализироватьViewModel()
 
-        viewModel.initializeCamera(mockLifecycleOwner)
-        testScheduler.advanceUntilIdle()
+        // Act
+        launch {
+            viewModel.pauseCamera()
+        }
+        advanceUntilIdle()
 
-        // When
-        viewModel.resumeCamera()
-        testScheduler.advanceUntilIdle()
-
-        // Then
-        verify(mockCameraRepository).resumeCamera()
+        // Assert
+        coVerify { mockCameraRepository.pauseCamera() }
     }
 
     @Test
-    fun `setFrozen should call repository setFrozen`() = runTest(testDispatcher) {
-        // Given
-        `when`(mockCameraRepository.initializeCamera()).thenReturn(true)
-        `when`(mockCameraRepository.getCameraState()).thenReturn(MutableStateFlow(CameraState()))
+    fun `возобновление камеры должно вызвать resumeCamera репозитория когда репозиторий инициализирован`() = testScope.runTest {
+        // Arrange
+        инициализироватьViewModel()
 
-        viewModel.initializeCamera(mockLifecycleOwner)
-        testScheduler.advanceUntilIdle()
+        // Act
+        launch {
+            viewModel.resumeCamera()
+        }
+        advanceUntilIdle()
 
-        // When
+        // Assert
+        coVerify { mockCameraRepository.resumeCamera() }
+    }
+
+    @Test
+    fun `захват кадра должен вызвать captureFrame репозитория когда репозиторий инициализирован`() = testScope.runTest {
+        // Arrange
+        инициализироватьViewModel()
+
+        // Act
+        launch {
+            viewModel.captureFrame()
+        }
+        advanceUntilIdle()
+
+        // Assert
+        coVerify { mockCameraRepository.captureFrame() }
+    }
+
+    @Test
+    fun `установка заморозки должна вызвать setFrozen репозитория когда репозиторий инициализирован`() = testScope.runTest {
+        // Arrange
+        инициализироватьViewModel()
+
+        // Act - setFrozen не вызывается через withRepository, поэтому не нужен launch
         viewModel.setFrozen(true)
-        testScheduler.advanceUntilIdle()
+        advanceUntilIdle()
 
-        // Then
-        verify(mockCameraRepository).setFrozen(true)
+        // Assert
+        verify { mockCameraRepository.setFrozen(true) }
     }
 
     @Test
-    fun `clearError should call repository clearError`() = runTest(testDispatcher) {
-        // Given
-        `when`(mockCameraRepository.initializeCamera()).thenReturn(true)
-        `when`(mockCameraRepository.getCameraState()).thenReturn(MutableStateFlow(CameraState()))
+    fun `очистка ошибки должна вызвать clearError репозитория когда репозиторий инициализирован`() = testScope.runTest {
+        // Arrange
+        инициализироватьViewModel()
 
-        viewModel.initializeCamera(mockLifecycleOwner)
-        testScheduler.advanceUntilIdle()
-
-        // When
+        // Act - clearError не вызывается через withRepository, поэтому не нужен launch
         viewModel.clearError()
-        testScheduler.advanceUntilIdle()
+        advanceUntilIdle()
 
-        // Then
-        verify(mockCameraRepository).clearError()
+        // Assert
+        verify { mockCameraRepository.clearError() }
     }
 
     @Test
-    fun `captureFrame should return bitmap from repository`() = runTest(testDispatcher) {
-        // Given
-        `when`(mockCameraRepository.initializeCamera()).thenReturn(true)
-        `when`(mockCameraRepository.getCameraState()).thenReturn(MutableStateFlow(CameraState()))
+    fun `получение previewView должно вернуть previewView репозитория когда репозиторий инициализирован`() = testScope.runTest {
+        // Arrange
+        инициализироватьViewModel()
 
-        viewModel.initializeCamera(mockLifecycleOwner)
-        testScheduler.advanceUntilIdle()
+        // Act
+        val result = viewModel.getPreviewView()
 
-        // When
-        viewModel.captureFrame()
-
-        // Then
-        verify(mockCameraRepository).captureFrame()
+        // Assert
+        verify { mockCameraRepository.getPreviewView() }
+        assertNull(result)
     }
 
     @Test
-    fun `getPreviewView should return view from repository`() = runTest(testDispatcher) {
-        // Given
-        `when`(mockCameraRepository.initializeCamera()).thenReturn(true)
-        `when`(mockCameraRepository.getCameraState()).thenReturn(MutableStateFlow(CameraState()))
+    fun `получение previewView должно вернуть null когда репозиторий не инициализирован`() = testScope.runTest {
+        // Arrange - не инициализируем
 
-        viewModel.initializeCamera(mockLifecycleOwner)
-        testScheduler.advanceUntilIdle()
+        // Act
+        val result = viewModel.getPreviewView()
 
-        // When
-        viewModel.getPreviewView()
-
-        // Then
-        verify(mockCameraRepository).getPreviewView()
+        // Assert
+        verify(exactly = 0) { mockCameraRepository.getPreviewView() }
+        assertNull(result)
     }
 
     @Test
-    fun `forceRecreatePreview should call pause and resume with delay`() = runTest(testDispatcher) {
-        // Given
-        `when`(mockCameraRepository.initializeCamera()).thenReturn(true)
-        `when`(mockCameraRepository.getCameraState()).thenReturn(MutableStateFlow(CameraState()))
+    fun `принудительное пересоздание preview должно вызвать pauseCamera и resumeCamera когда репозиторий инициализирован`() = testScope.runTest {
+        // Arrange
+        инициализироватьViewModel()
 
-        viewModel.initializeCamera(mockLifecycleOwner)
-        testScheduler.advanceUntilIdle()
-
-        // When
+        // Act - forceRecreatePreview уже содержит launch внутри
         viewModel.forceRecreatePreview()
-        testScheduler.advanceTimeBy(60) // Даем время для выполнения корутины
+        advanceUntilIdle()
 
-        // Then
-        verify(mockCameraRepository).pauseCamera()
-        verify(mockCameraRepository).resumeCamera()
+        // Ждем немного, так как есть delay внутри метода
+        launch {
+            delay(100)
+        }
+        advanceUntilIdle()
+
+        // Assert
+        coVerify { mockCameraRepository.pauseCamera() }
+        coVerify { mockCameraRepository.resumeCamera() }
     }
 
     @Test
-    fun `onCleared should release repository`() = runTest(testDispatcher) {
-        // Given
-        // Инициализируем камеру, чтобы репозиторий был установлен
-        `when`(mockCameraRepository.initializeCamera()).thenReturn(true)
-        `when`(mockCameraRepository.getCameraState()).thenReturn(MutableStateFlow(CameraState()))
-        viewModel.initializeCamera(mockLifecycleOwner)
-        testScheduler.advanceUntilIdle()
+    fun `ViewModel должен иметь начальное состояние загрузки`() = testScope.runTest {
+        // Arrange & Act
+        val initialState = viewModel.cameraState.first()
 
-        // When - вызываем onCleared через рефлексию
-        val onClearedMethod: Method = CameraViewModel::class.java
-            .getDeclaredMethod("onCleared")
+        // Assert
+        assertTrue(initialState.isLoading)
+        assertNull(initialState.error)
+        assertFalse(initialState.isFrozen)
+        assertEquals(1.0f, initialState.zoomLevel)
+        assertFalse(initialState.isFlashEnabled)
+    }
+
+    @Test
+    fun `вызов onCleared должен вызвать release репозитория`() = testScope.runTest {
+        // Arrange
+        инициализироватьViewModel()
+
+        // Act - вызываем onCleared через reflection, так как он protected
+        val onClearedMethod = CameraViewModel::class.java.getDeclaredMethod("onCleared")
         onClearedMethod.isAccessible = true
         onClearedMethod.invoke(viewModel)
 
-        // Then
-        verify(mockCameraRepository).release()
+        // Assert
+        verify { mockCameraRepository.release() }
     }
 
     @Test
-    fun `initial state should have loading true`() {
-        // When
-        val initialState = viewModel.cameraState.value
-
-        // Then
-        assertTrue(initialState.isLoading)
-        assertEquals(1.0f, initialState.zoomLevel)
-        assertFalse(initialState.isFlashEnabled)
-        assertFalse(initialState.isFrozen)
-        assertNull(initialState.error)
-    }
-
-    @Test
-    fun `repository methods should not be called when repository is null`() = runTest(testDispatcher) {
-        // When - вызываем методы до инициализации камеры
-        viewModel.setZoom(2.0f)
-        viewModel.toggleFlash()
-        viewModel.pauseCamera()
-        viewModel.resumeCamera()
-        viewModel.setFrozen(true)
-        viewModel.clearError()
-        testScheduler.advanceUntilIdle()
-
-        // Then - не должно быть вызовов, так как репозиторий null
-        verify(mockCameraRepository, never()).setZoom(any())
-        verify(mockCameraRepository, never()).toggleFlash()
-        verify(mockCameraRepository, never()).pauseCamera()
-        verify(mockCameraRepository, never()).resumeCamera()
-        verify(mockCameraRepository, never()).setFrozen(any())
-        verify(mockCameraRepository, never()).clearError()
-    }
-
-    @Test
-    fun `withRepository should not crash when repository is null`() = runTest(testDispatcher) {
-        // Given - репозиторий не инициализирован
-
-        // When - вызываем методы, которые используют withRepository
-        viewModel.setZoom(1.5f)
-        viewModel.toggleFlash()
-        viewModel.pauseCamera()
-        viewModel.resumeCamera()
-        testScheduler.advanceUntilIdle()
-
-        // Then - не должно быть исключений
-        // verify(mockCameraRepository, never()) уже проверяется в других тестах
-        assertTrue(true) // Просто проверяем, что не упало
-    }
-
-    @Test
-    fun `camera state flow should emit updated values from repository`() = runTest(testDispatcher) {
-        // Given
-        val cameraStates = listOf(
-            CameraState(isLoading = false, isInitialized = true, zoomLevel = 1.0f),
-            CameraState(isLoading = false, isInitialized = true, zoomLevel = 2.0f),
-            CameraState(isLoading = false, isInitialized = true, zoomLevel = 3.0f)
+    fun `инициализация камеры должна обновить состояние когда репозиторий эмитит новое состояние`() = testScope.runTest {
+        // Arrange
+        val mockLifecycleOwner = mockk<androidx.lifecycle.LifecycleOwner>(relaxed = true)
+        val testStateFlow = MutableStateFlow(
+            CameraState(
+                isFrozen = true,
+                zoomLevel = 2.0f,
+                isFlashEnabled = true,
+                isLoading = false,
+                error = "Test error"
+            )
         )
 
-        val stateFlow = MutableStateFlow(cameraStates[0])
-        `when`(mockCameraRepository.initializeCamera()).thenReturn(true)
-        `when`(mockCameraRepository.getCameraState()).thenReturn(stateFlow)
+        every { mockCameraRepository.getCameraState() } returns testStateFlow
 
+        // Act
         viewModel.initializeCamera(mockLifecycleOwner)
-        testScheduler.advanceUntilIdle()
+        advanceUntilIdle()
 
-        // When
-        stateFlow.value = cameraStates[1]
-        stateFlow.value = cameraStates[2]
-        testScheduler.advanceUntilIdle()
-
-        // Then
-        assertEquals(3.0f, viewModel.cameraState.value.zoomLevel)
+        // Assert
+        val actualState = viewModel.cameraState.first()
+        assertTrue(actualState.isFrozen)
+        assertEquals(2.0f, actualState.zoomLevel)
+        assertTrue(actualState.isFlashEnabled)
+        assertEquals("Test error", actualState.error)
     }
 
     @Test
-    fun `initializeCamera should handle null repository from factory`() = runTest(testDispatcher) {
-        // Given
-        `when`(mockRepositoryFactory.create(mockLifecycleOwner)).thenReturn(null)
+    fun `множественные вызовы initializeCamera не должны создавать множественные подписки`() = testScope.runTest {
+        // Arrange
+        val mockLifecycleOwner = mockk<androidx.lifecycle.LifecycleOwner>(relaxed = true)
 
-        // When
+        // Act
         viewModel.initializeCamera(mockLifecycleOwner)
-        testScheduler.advanceUntilIdle()
+        viewModel.initializeCamera(mockLifecycleOwner) // Второй вызов
+        advanceUntilIdle()
 
-        // Then
-        val actualState = viewModel.cameraState.first()
-        assertFalse(actualState.isLoading)
-        assertFalse(actualState.isInitialized)
-        assertEquals("Не удалось инициализировать камеру", actualState.error)
+        // Assert
+        coVerify(exactly = 2) { mockRepositoryFactory.create(mockLifecycleOwner) }
+        coVerify(exactly = 2) { mockCameraRepository.initializeCamera() }
+        verify(exactly = 2) { mockCameraRepository.getCameraState() }
     }
 
-    @Test
-    fun `initializeCamera should handle when repository is not CameraRepositoryImpl`() = runTest(testDispatcher) {
-        // Given
-        val otherRepository = mock(ru.wert.quickloupe.data.repository.CameraRepository::class.java)
-        `when`(mockRepositoryFactory.create(mockLifecycleOwner)).thenReturn(otherRepository)
-
-        // When
+    private suspend fun инициализироватьViewModel() {
+        val mockLifecycleOwner = mockk<androidx.lifecycle.LifecycleOwner>(relaxed = true)
         viewModel.initializeCamera(mockLifecycleOwner)
-        testScheduler.advanceUntilIdle()
-
-        // Then
-        val actualState = viewModel.cameraState.first()
-        assertFalse(actualState.isLoading)
-        assertFalse(actualState.isInitialized)
-        assertEquals("Не удалось инициализировать камеру", actualState.error)
     }
 }

@@ -107,13 +107,10 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
-    // Mockito для unit тестов
-    testImplementation(libs.mockito.core)
-    androidTestImplementation(libs.mockito.jupiter)
-
-    //Для андроид тестов
-    androidTestImplementation(libs.mockito.android)
-
+    // Mockk
+    testImplementation(libs.mockk.agent) // Для unit тестов
+    testImplementation(libs.mockk.android) // Для Android тестов
+    testImplementation(libs.mockk.junit5) // Для Android тестов
 
     // Интеграционные тесты
     androidTestImplementation(libs.androidx.junit)
