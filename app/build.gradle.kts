@@ -54,8 +54,15 @@ android {
 
     tasks.withType<Test> {
         useJUnitPlatform() // Включаем JUnit 5 Platform
+        maxParallelForks = 1
         testLogging {
             events("passed", "skipped", "failed")
+        }
+    }
+
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
         }
     }
 
@@ -71,7 +78,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.test.core.ktx)
-    testImplementation(libs.junit)
+//    testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
@@ -100,17 +107,15 @@ dependencies {
 
     //ТЕСТИРОВАНИЕ
     // JUnit 5 (Jupiter) для unit тестов
-    testImplementation(libs.junit) // Это теперь junit-jupiter-api
+    testImplementation(libs.junit.jupiter.api) // JUnit 5 api
     testImplementation(libs.junit.jupiter.engine) // JUnit 5 engine
-    testImplementation(libs.junit.jupiter.params) // JUnit 5 engine
+    testImplementation(libs.junit.jupiter.params) // JUnit 5 params
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     // Mockk
-    testImplementation(libs.mockk.agent) // Для unit тестов
-    testImplementation(libs.mockk.android) // Для Android тестов
-    testImplementation(libs.mockk.junit5) // Для Android тестов
+    testImplementation(libs.mockk) // Для unit тестов
 
     // Интеграционные тесты
     androidTestImplementation(libs.androidx.junit)
