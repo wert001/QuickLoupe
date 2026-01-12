@@ -64,8 +64,12 @@ android {
         unitTests {
             isReturnDefaultValues = true
         }
+        //Чтобы игнорировать сообщение от Java о динамической загрузке агента ByteBuddy,
+        // который используется библиотекой MockK для мокинга классов и функций
+        unitTests.all {
+            it.jvmArgs("-XX:+EnableDynamicAgentLoading")
+        }
     }
-
 }
 
 dependencies {
@@ -78,7 +82,6 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.test.core.ktx)
-//    testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
@@ -116,6 +119,10 @@ dependencies {
 
     // Mockk
     testImplementation(libs.mockk) // Для unit тестов
+    testImplementation(libs.mockk.android)
+
+    // Kotlin Coroutines Test
+    testImplementation(libs.kotlinx.coroutines.test)
 
     // Интеграционные тесты
     androidTestImplementation(libs.androidx.junit)
