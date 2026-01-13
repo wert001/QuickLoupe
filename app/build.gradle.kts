@@ -134,5 +134,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     testImplementation(libs.kotlinx.coroutines.test)
+
+    testImplementation("org.robolectric:robolectric:4.9")
 }
 
