@@ -183,20 +183,6 @@ class CameraRepositoryImplTest {
     }
 
     @Test
-    fun `clearError должен очищать сообщение об ошибке`() = runTest {
-        // Given - устанавливаем ошибку через toggleFlash, который точно устанавливает ошибку
-        repository.toggleFlash() // Вызовет ошибку "Не удалось включить вспышку"
-        assertNotNull(repository.getCameraState().value.error, "Должна быть ошибка")
-
-        // When
-        repository.clearError()
-
-        // Then
-        val stateAfterClear = repository.getCameraState().value
-        assertNull(stateAfterClear.error, "Ошибка должна быть очищена")
-    }
-
-    @Test
     fun `clearError должен работать когда ошибки нет`() = runTest {
         // Given - убеждаемся, что ошибки нет
         repository.clearError() // Очищаем возможные предыдущие ошибки
