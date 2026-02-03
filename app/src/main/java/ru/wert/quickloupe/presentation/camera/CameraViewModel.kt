@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import ru.wert.quickloupe.data.repository.CameraRepository
-import ru.wert.quickloupe.data.repository.CameraRepositoryImpl
+import ru.wert.quickloupe.domain.usecases.CameraManager
+import ru.wert.quickloupe.domain.usecases.CameraManagerImpl
 import ru.wert.quickloupe.di.CameraRepositoryFactory
 import ru.wert.quickloupe.domain.models.CameraState
 import javax.inject.Inject
@@ -22,7 +22,7 @@ class CameraViewModel @Inject constructor(
 ) : ViewModel() {
 
     // Измените на nullable или используйте опциональное значение
-    private var cameraRepository: CameraRepositoryImpl? = null
+    private var cameraRepository: CameraManagerImpl? = null
 
     // Создайте fallback состояние, пока камера не инициализирована
     private val _cameraState = MutableStateFlow(
@@ -40,7 +40,7 @@ class CameraViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 _cameraState.value = _cameraState.value.copy(isLoading = true)
-                cameraRepository = repositoryFactory.create(lifecycleOwner) as? CameraRepositoryImpl
+                cameraRepository = repositoryFactory.create(lifecycleOwner) as? CameraManagerImpl
 
                 val initialized = cameraRepository?.initializeCamera() ?: false
 
@@ -66,7 +66,7 @@ class CameraViewModel @Inject constructor(
         }
     }
 
-    private fun withRepository(action: suspend (CameraRepository) -> Unit) {
+    private fun withRepository(action: suspend (CameraManager) -> Unit) {
         viewModelScope.launch {
             cameraRepository?.let { action(it) }
         }

@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
+import ru.wert.quickloupe.domain.usecases.CameraManagerImpl
 
 /**
  * Тесты для класса CameraRepositoryImpl.
@@ -30,7 +31,7 @@ class CameraRepositoryImplTest {
 
     private lateinit var mockContext: Context
     private lateinit var mockLifecycleOwner: LifecycleOwner
-    private lateinit var repository: CameraRepositoryImpl
+    private lateinit var repository: CameraManagerImpl
 
     @BeforeEach
     fun setUp() {
@@ -45,7 +46,7 @@ class CameraRepositoryImplTest {
         mockLifecycleOwner = mockk<LifecycleOwner>(relaxed = true)
 
         // Создаем репозиторий
-        repository = CameraRepositoryImpl(mockContext, mockLifecycleOwner)
+        repository = CameraManagerImpl(mockContext, mockLifecycleOwner)
 
         // Настраиваем Dispatchers для тестов
         Dispatchers.setMain(Dispatchers.Unconfined)
@@ -103,9 +104,11 @@ class CameraRepositoryImplTest {
         val stateAfterLow = repository.getCameraState().value
 
         // Then
-        assertEquals(CameraRepositoryImpl.MAX_ZOOM, stateAfterHigh.zoomLevel,
+        assertEquals(
+            CameraManagerImpl.MAX_ZOOM, stateAfterHigh.zoomLevel,
             "Должно ограничиться MAX_ZOOM")
-        assertEquals(CameraRepositoryImpl.MIN_ZOOM, stateAfterLow.zoomLevel,
+        assertEquals(
+            CameraManagerImpl.MIN_ZOOM, stateAfterLow.zoomLevel,
             "Должно ограничиться MIN_ZOOM")
     }
 

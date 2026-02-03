@@ -1,7 +1,8 @@
-package ru.wert.quickloupe.data.repository
+package ru.wert.quickloupe.domain.usecases
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.view.ViewGroup
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -24,10 +25,10 @@ import java.util.concurrent.Executors
  * Реализация репозитория для работы с камерой
  * Использует CameraX для управления камерой устройства
  */
-class CameraRepositoryImpl(
+class CameraManagerImpl(
     private val context: Context,
     private val lifecycleOwner: LifecycleOwner
-) : CameraRepository {
+) : CameraManager {
     companion object {
         private const val TAG = "CameraRepository"
         const val MIN_ZOOM = 1.0f
@@ -58,7 +59,7 @@ class CameraRepositoryImpl(
         return withContext(Dispatchers.IO) {
             try {
                 // Получаем camera provider асинхронно
-                val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+                val cameraProviderFuture = ProcessCameraProvider.Companion.getInstance(context)
                 cameraProvider = cameraProviderFuture.get()
 
                 cameraExecutor = Executors.newSingleThreadExecutor()
@@ -70,10 +71,12 @@ class CameraRepositoryImpl(
 
                 true
             } catch (e: Exception) {
-                _state.update { it.copy(
-                    error = "Не удалось инициализировать камеру: ${e.localizedMessage}",
-                    isLoading = false
-                ) }
+                _state.update {
+                    it.copy(
+                        error = "Не удалось инициализировать камеру: ${e.localizedMessage}",
+                        isLoading = false
+                    )
+                }
                 false
             }
         }
@@ -249,9 +252,9 @@ class CameraRepositoryImpl(
      */
     fun createPreviewView(): PreviewView {
         previewView = PreviewView(context).apply {
-            layoutParams = android.view.ViewGroup.LayoutParams(
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
             )
             scaleType = PreviewView.ScaleType.FILL_CENTER
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE

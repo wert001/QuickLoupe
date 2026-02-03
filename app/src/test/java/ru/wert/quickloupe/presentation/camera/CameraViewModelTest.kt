@@ -15,7 +15,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import ru.wert.quickloupe.di.CameraRepositoryFactory
-import ru.wert.quickloupe.data.repository.CameraRepositoryImpl
+import ru.wert.quickloupe.domain.usecases.CameraManagerImpl
 import ru.wert.quickloupe.domain.models.CameraState
 
 /**
@@ -33,7 +33,7 @@ class CameraViewModelTest {
 
     private lateinit var viewModel: CameraViewModel
     private lateinit var mockRepositoryFactory: CameraRepositoryFactory
-    private lateinit var mockCameraRepository: CameraRepositoryImpl
+    private lateinit var mockCameraRepository: CameraManagerImpl
     private val testDispatcher = StandardTestDispatcher()
     private val testScope = TestScope(testDispatcher)
 
