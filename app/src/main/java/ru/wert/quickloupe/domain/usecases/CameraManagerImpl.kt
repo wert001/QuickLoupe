@@ -31,9 +31,6 @@ class CameraManagerImpl(
 ) : CameraManager {
     companion object {
         private const val TAG = "CameraRepository"
-        const val MIN_ZOOM = 1.0f
-        const val MAX_ZOOM = 5.0f  // Изменено максимальное увеличение до 5x
-        const val DEFAULT_ZOOM = 1.0f
     }
 
     // Состояние камеры
@@ -41,11 +38,20 @@ class CameraManagerImpl(
     override fun getCameraState(): StateFlow<CameraState> = _state.asStateFlow()
 
     // CameraX компоненты
-    private var cameraProvider: ProcessCameraProvider? = null
-    private var camera: Camera? = null
+    private var _cameraProvider: ProcessCameraProvider? = null
+    private var _camera: Camera? = null
     private var preview: Preview? = null
     private var imageAnalysis: ImageAnalysis? = null
     private lateinit var cameraExecutor: ExecutorService
+
+    // Use cases
+    private val initializeCameraUseCase = InitializeCameraUseCase(this)
+    private val setZoomUseCase = SetZoomUseCase(this)
+    private val toggleFlashUseCase = ToggleFlashUseCase(this)
+    private val pauseCameraUseCase = PauseCameraUseCase(this)
+    private val resumeCameraUseCase = ResumeCameraUseCase(this)
+    private val captureFrameUseCase = CaptureFrameUseCase(this)
+    private val createPreviewViewUseCase = CreatePreviewViewUseCase(this)
 
     // Preview view
     private var previewView: PreviewView? = null
@@ -56,37 +62,14 @@ class CameraManagerImpl(
      * @return true если инициализация прошла успешно, false в случае ошибки
      */
     override suspend fun initializeCamera(): Boolean {
-        return withContext(Dispatchers.IO) {
-            try {
-                // Получаем camera provider асинхронно
-                val cameraProviderFuture = ProcessCameraProvider.Companion.getInstance(context)
-                cameraProvider = cameraProviderFuture.get()
-
-                cameraExecutor = Executors.newSingleThreadExecutor()
-
-                // Возвращаемся в главный поток для настройки UI
-                withContext(Dispatchers.Main) {
-                    bindCameraUseCases()
-                }
-
-                true
-            } catch (e: Exception) {
-                _state.update {
-                    it.copy(
-                        error = "Не удалось инициализировать камеру: ${e.localizedMessage}",
-                        isLoading = false
-                    )
-                }
-                false
-            }
-        }
+        return initializeCameraUseCase.execute(context, lifecycleOwner)
     }
 
     /**
      * Привязка use cases к камере
      */
-    private fun bindCameraUseCases() {
-        val cameraProvider = cameraProvider ?: run {
+    internal fun bindCameraUseCases() {
+        val cameraProvider = _cameraProvider ?: run {
             _state.update { it.copy(
                 error = "Камера недоступна",
                 isLoading = false
@@ -114,18 +97,18 @@ class CameraManagerImpl(
                 .build()
 
             // Bind use cases to camera
-            camera = cameraProvider.bindToLifecycle(
+            _camera = cameraProvider.bindToLifecycle(
                 lifecycleOwner,
                 cameraSelector,
                 preview
             )
 
             // Настройка зума с учетом нового максимального значения
-            camera?.cameraControl?.setZoomRatio(_state.value.zoomLevel.coerceIn(MIN_ZOOM, MAX_ZOOM))
+            _camera?.cameraControl?.setZoomRatio(_state.value.zoomLevel.coerceIn(InitializeCameraUseCase.MIN_ZOOM, InitializeCameraUseCase.MAX_ZOOM))
 
             // Восстанавливаем состояние вспышки
             if (_state.value.isFlashEnabled) {
-                camera?.cameraControl?.enableTorch(true)
+                _camera?.cameraControl?.enableTorch(true)
             }
 
             isCameraBound = true
@@ -148,10 +131,10 @@ class CameraManagerImpl(
     /**
      * Отключение всех use cases от камеры
      */
-    private fun unbindCamera() {
+    internal fun unbindCamera() {
         try {
-            cameraProvider?.unbindAll()
-            camera = null
+            _cameraProvider?.unbindAll()
+            _camera = null
             preview = null
             isCameraBound = false
         } catch (e: Exception) {
@@ -163,28 +146,14 @@ class CameraManagerImpl(
      * Приостановка работы камеры
      */
     override suspend fun pauseCamera() {
-        withContext(Dispatchers.Main) {
-            try {
-                unbindCamera()
-            } catch (e: Exception) {
-                _state.update { it.copy(error = "Ошибка при паузе камеры") }
-            }
-        }
+        pauseCameraUseCase.execute()
     }
 
     /**
      * Возобновление работы камеры
      */
     override suspend fun resumeCamera() {
-        withContext(Dispatchers.Main) {
-            try {
-                // Не используем Thread.sleep в корутинах
-                delay(100)
-                bindCameraUseCases()
-            } catch (e: Exception) {
-                _state.update { it.copy(error = "Ошибка при возобновлении камеры") }
-            }
-        }
+        resumeCameraUseCase.execute()
     }
 
     /**
@@ -192,16 +161,7 @@ class CameraManagerImpl(
      * @param zoomLevel уровень зума от 1.0f до 5.0f
      */
     override suspend fun setZoom(zoomLevel: Float) {
-        val clampedZoom = zoomLevel.coerceIn(MIN_ZOOM, MAX_ZOOM)
-
-        try {
-            withContext(Dispatchers.Main) {
-                camera?.cameraControl?.setZoomRatio(clampedZoom)
-                _state.update { it.copy(zoomLevel = clampedZoom) }
-            }
-        } catch (e: Exception) {
-            _state.update { it.copy(error = "Ошибка изменения зума") }
-        }
+        setZoomUseCase.execute(zoomLevel)
     }
 
     /**
@@ -209,20 +169,7 @@ class CameraManagerImpl(
      * @return новое состояние вспышки (true - включена, false - выключена)
      */
     override suspend fun toggleFlash(): Boolean {
-        return try {
-            val camera = camera ?: return false
-            val torchState = !_state.value.isFlashEnabled
-
-            withContext(Dispatchers.Main) {
-                camera.cameraControl.enableTorch(torchState)
-            }
-
-            _state.update { it.copy(isFlashEnabled = torchState) }
-            torchState
-        } catch (e: Exception) {
-            _state.update { it.copy(error = "Не удалось включить вспышку") }
-            false
-        }
+        return toggleFlashUseCase.execute()
     }
 
     /**
@@ -233,33 +180,19 @@ class CameraManagerImpl(
         _state.update { it.copy(isFrozen = frozen) }
     }
 
-
     /**
      * Захват текущего кадра
      * @return Bitmap захваченного изображения или null в случае ошибки
      */
     override fun captureFrame(): Bitmap? {
-        return try {
-            previewView?.bitmap?.copy(Bitmap.Config.ARGB_8888, false)
-        } catch (e: Exception) {
-            null
-        }
+        return captureFrameUseCase.execute()
     }
 
     /**
      * Создание preview view для отображения потока с камеры
-     * @return созданный PreviewView
      */
-    fun createPreviewView(): PreviewView {
-        previewView = PreviewView(context).apply {
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-            scaleType = PreviewView.ScaleType.FILL_CENTER
-            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-        }
-        return previewView!!
+    private fun createPreviewView() {
+        previewView = createPreviewViewUseCase.execute(context)
     }
 
     /**
@@ -287,5 +220,25 @@ class CameraManagerImpl(
         } catch (e: Exception) {
             _state.update { it.copy(error = "Ошибка освобождения ресурсов") }
         }
+    }
+
+    // Internal getters for use cases
+    internal fun getInternalState(): MutableStateFlow<CameraState> = _state
+    internal fun getInternalCamera(): Camera? = _camera
+    internal fun getInternalCameraProvider(): ProcessCameraProvider? = _cameraProvider
+    internal fun getInternalCameraExecutor(): ExecutorService = cameraExecutor
+    internal fun setInternalCameraProvider(provider: ProcessCameraProvider) {
+        _cameraProvider = provider
+    }
+    internal fun setInternalCameraExecutor(executor: ExecutorService) {
+        cameraExecutor = executor
+    }
+    internal fun isCameraBoundInternal(): Boolean = isCameraBound
+    internal fun setCameraBoundInternal(bound: Boolean) {
+        isCameraBound = bound
+    }
+    internal fun getInternalPreviewView(): PreviewView? = previewView
+    internal fun setInternalPreviewView(view: PreviewView?) {
+        previewView = view
     }
 }
