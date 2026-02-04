@@ -16,15 +16,20 @@ import ru.wert.quickloupe.di.CameraRepositoryFactory
 import ru.wert.quickloupe.domain.models.CameraState
 import javax.inject.Inject
 
+/**
+ * ViewModel для управления камерой.
+ * Координирует взаимодействие между UI и бизнес-логикой камеры.
+ * Использует Hilt для внедрения зависимостей.
+ */
 @HiltViewModel
 class CameraViewModel @Inject constructor(
     private val repositoryFactory: CameraRepositoryFactory
 ) : ViewModel() {
 
-    // Измените на nullable или используйте опциональное значение
+    // Репозиторий камеры (nullable, так как создается с lifecycleOwner)
     private var cameraRepository: CameraManagerImpl? = null
 
-    // Создайте fallback состояние, пока камера не инициализирована
+    // Состояние камеры с начальными значениями
     private val _cameraState = MutableStateFlow(
         CameraState(
             isFrozen = false,
@@ -34,18 +39,27 @@ class CameraViewModel @Inject constructor(
             error = null
         )
     )
+
+    /** Публичный доступ к состоянию камеры */
     val cameraState: StateFlow<CameraState> = _cameraState.asStateFlow()
 
+    /**
+     * Инициализирует камеру с указанным владельцем жизненного цикла.
+     *
+     * @param lifecycleOwner владелец жизненного цикла (Activity или Fragment)
+     */
     fun initializeCamera(lifecycleOwner: LifecycleOwner) {
         viewModelScope.launch {
             try {
                 _cameraState.value = _cameraState.value.copy(isLoading = true)
+
+                // Создаем репозиторий через фабрику
                 cameraRepository = repositoryFactory.create(lifecycleOwner) as? CameraManagerImpl
 
                 val initialized = cameraRepository?.initializeCamera() ?: false
 
                 if (initialized) {
-                    // Подписываемся на обновления состояния
+                    // Подписываемся на обновления состояния из репозитория
                     viewModelScope.launch {
                         cameraRepository?.getCameraState()?.collect { state ->
                             _cameraState.value = state
@@ -66,49 +80,64 @@ class CameraViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Вспомогательная функция для выполнения операций с репозиторием.
+     * Проверяет наличие репозитория и выполняет действие в корутине.
+     *
+     * @param action действие для выполнения с репозиторием
+     */
     private fun withRepository(action: suspend (CameraManager) -> Unit) {
         viewModelScope.launch {
             cameraRepository?.let { action(it) }
         }
     }
 
+    /** Устанавливает уровень зума камеры */
     fun setZoom(zoomLevel: Float) {
         withRepository { it.setZoom(zoomLevel) }
     }
 
+    /** Переключает состояние вспышки */
     fun toggleFlash() {
         withRepository { it.toggleFlash() }
     }
 
+    /** Приостанавливает работу камеры */
     fun pauseCamera() {
         withRepository { it.pauseCamera() }
     }
 
+    /** Возобновляет работу камеры после паузы */
     fun resumeCamera() {
         withRepository { it.resumeCamera() }
     }
 
+    /** Захватывает текущий кадр с камеры */
     fun captureFrame() = cameraRepository?.captureFrame()
 
+    /** Устанавливает состояние заморозки изображения */
     fun setFrozen(frozen: Boolean) {
         cameraRepository?.setFrozen(frozen)
     }
 
+    /** Очищает сообщение об ошибке */
     fun clearError() {
         cameraRepository?.clearError()
     }
 
+    /** Получает PreviewView для отображения в UI */
     fun getPreviewView(): View? {
         return cameraRepository?.getPreviewView()
     }
 
+    /** Освобождает ресурсы при уничтожении ViewModel */
     override fun onCleared() {
         super.onCleared()
         cameraRepository?.release()
     }
 
+    /** Принудительно пересоздает preview (используется для решения проблем с отображением) */
     fun forceRecreatePreview() {
-        // Принудительно пересоздаем preview при необходимости
         viewModelScope.launch {
             cameraRepository?.pauseCamera()
             delay(50)

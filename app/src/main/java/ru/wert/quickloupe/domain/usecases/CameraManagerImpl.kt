@@ -22,19 +22,27 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
- * Реализация репозитория для работы с камерой
- * Использует CameraX для управления камерой устройства
+ * Реализация менеджера камеры.
+ * Использует CameraX для управления камерой устройства.
+ *
+ * @param context контекст приложения
+ * @param lifecycleOwner владелец жизненного цикла (обычно Activity или Fragment)
  */
 class CameraManagerImpl(
     private val context: Context,
     private val lifecycleOwner: LifecycleOwner
 ) : CameraManager {
+
     companion object {
-        private const val TAG = "CameraRepository"
+        private const val TAG = "CameraRepository" // Тег для логов
     }
 
     // Состояние камеры
     private val _state = MutableStateFlow(CameraState())
+
+    /**
+     * Получает состояние камеры как StateFlow.
+     */
     override fun getCameraState(): StateFlow<CameraState> = _state.asStateFlow()
 
     // CameraX компоненты
@@ -44,7 +52,7 @@ class CameraManagerImpl(
     private var imageAnalysis: ImageAnalysis? = null
     private lateinit var cameraExecutor: ExecutorService
 
-    // Use cases
+    // Use cases для инкапсуляции логики
     private val initializeCameraUseCase = InitializeCameraUseCase(this)
     private val setZoomUseCase = SetZoomUseCase(this)
     private val toggleFlashUseCase = ToggleFlashUseCase(this)
@@ -53,12 +61,15 @@ class CameraManagerImpl(
     private val captureFrameUseCase = CaptureFrameUseCase(this)
     private val createPreviewViewUseCase = CreatePreviewViewUseCase(this)
 
-    // Preview view
+    // Preview view для отображения потока с камеры
     private var previewView: PreviewView? = null
+
+    // Флаг, указывающий, привязана ли камера к lifecycle
     private var isCameraBound: Boolean = false
 
     /**
-     * Инициализация камеры
+     * Инициализация камеры.
+     *
      * @return true если инициализация прошла успешно, false в случае ошибки
      */
     override suspend fun initializeCamera(): Boolean {
@@ -66,10 +77,12 @@ class CameraManagerImpl(
     }
 
     /**
-     * Привязка use cases к камере
+     * Привязка use cases к камере.
+     * Этот метод настраивает Preview, выбирает камеру и восстанавливает состояние.
      */
     internal fun bindCameraUseCases() {
         val cameraProvider = _cameraProvider ?: run {
+            // Если провайдер камеры недоступен, обновляем состояние с ошибкой
             _state.update { it.copy(
                 error = "Камера недоступна",
                 isLoading = false
@@ -86,17 +99,17 @@ class CameraManagerImpl(
                 createPreviewView()
             }
 
-            // Preview
+            // Создаем Preview use case
             preview = Preview.Builder().build().also {
                 it.setSurfaceProvider(previewView!!.surfaceProvider)
             }
 
-            // Выбор камеры (задняя)
+            // Выбираем заднюю камеру
             val cameraSelector = CameraSelector.Builder()
                 .requireLensFacing(CameraSelector.LENS_FACING_BACK)
                 .build()
 
-            // Bind use cases to camera
+            // Привязываем use cases к жизненному циклу
             _camera = cameraProvider.bindToLifecycle(
                 lifecycleOwner,
                 cameraSelector,
@@ -104,7 +117,10 @@ class CameraManagerImpl(
             )
 
             // Настройка зума с учетом нового максимального значения
-            _camera?.cameraControl?.setZoomRatio(_state.value.zoomLevel.coerceIn(InitializeCameraUseCase.MIN_ZOOM, InitializeCameraUseCase.MAX_ZOOM))
+            _camera?.cameraControl?.setZoomRatio(_state.value.zoomLevel.coerceIn(
+                InitializeCameraUseCase.MIN_ZOOM,
+                InitializeCameraUseCase.MAX_ZOOM
+            ))
 
             // Восстанавливаем состояние вспышки
             if (_state.value.isFlashEnabled) {
@@ -113,6 +129,7 @@ class CameraManagerImpl(
 
             isCameraBound = true
 
+            // Обновляем состояние - камера успешно инициализирована
             _state.update {
                 it.copy(
                     isLoading = false,
@@ -129,7 +146,8 @@ class CameraManagerImpl(
     }
 
     /**
-     * Отключение всех use cases от камеры
+     * Отключение всех use cases от камеры.
+     * Освобождает ресурсы камеры.
      */
     internal fun unbindCamera() {
         try {
@@ -143,21 +161,22 @@ class CameraManagerImpl(
     }
 
     /**
-     * Приостановка работы камеры
+     * Приостановка работы камеры.
      */
     override suspend fun pauseCamera() {
         pauseCameraUseCase.execute()
     }
 
     /**
-     * Возобновление работы камеры
+     * Возобновление работы камеры.
      */
     override suspend fun resumeCamera() {
         resumeCameraUseCase.execute()
     }
 
     /**
-     * Установка уровня зума
+     * Установка уровня зума.
+     *
      * @param zoomLevel уровень зума от 1.0f до 5.0f
      */
     override suspend fun setZoom(zoomLevel: Float) {
@@ -165,7 +184,8 @@ class CameraManagerImpl(
     }
 
     /**
-     * Переключение вспышки
+     * Переключение вспышки.
+     *
      * @return новое состояние вспышки (true - включена, false - выключена)
      */
     override suspend fun toggleFlash(): Boolean {
@@ -173,7 +193,8 @@ class CameraManagerImpl(
     }
 
     /**
-     * Заморозка/разморозка изображения
+     * Заморозка/разморозка изображения.
+     *
      * @param frozen true - заморозить, false - разморозить
      */
     override fun setFrozen(frozen: Boolean) {
@@ -181,7 +202,8 @@ class CameraManagerImpl(
     }
 
     /**
-     * Захват текущего кадра
+     * Захват текущего кадра.
+     *
      * @return Bitmap захваченного изображения или null в случае ошибки
      */
     override fun captureFrame(): Bitmap? {
@@ -189,27 +211,28 @@ class CameraManagerImpl(
     }
 
     /**
-     * Создание preview view для отображения потока с камеры
+     * Создание preview view для отображения потока с камеры.
      */
     private fun createPreviewView() {
         previewView = createPreviewViewUseCase.execute(context)
     }
 
     /**
-     * Получение preview view
+     * Получение preview view.
+     *
      * @return PreviewView или null если не создан
      */
     fun getPreviewView(): PreviewView? = previewView
 
     /**
-     * Очистка сообщения об ошибке
+     * Очистка сообщения об ошибке.
      */
     override fun clearError() {
         _state.update { it.copy(error = null) }
     }
 
     /**
-     * Освобождение ресурсов камеры
+     * Освобождение ресурсов камеры.
      */
     override fun release() {
         try {
@@ -222,22 +245,42 @@ class CameraManagerImpl(
         }
     }
 
-    // Internal getters for use cases
+    // Внутренние геттеры и сеттеры для use cases
+
+    /** Получает внутреннее состояние камеры */
     internal fun getInternalState(): MutableStateFlow<CameraState> = _state
+
+    /** Получает текущую камеру */
     internal fun getInternalCamera(): Camera? = _camera
+
+    /** Получает провайдер камеры */
     internal fun getInternalCameraProvider(): ProcessCameraProvider? = _cameraProvider
+
+    /** Получает исполнитель для камеры */
     internal fun getInternalCameraExecutor(): ExecutorService = cameraExecutor
+
+    /** Устанавливает провайдер камеры */
     internal fun setInternalCameraProvider(provider: ProcessCameraProvider) {
         _cameraProvider = provider
     }
+
+    /** Устанавливает исполнитель для камеры */
     internal fun setInternalCameraExecutor(executor: ExecutorService) {
         cameraExecutor = executor
     }
+
+    /** Проверяет, привязана ли камера */
     internal fun isCameraBoundInternal(): Boolean = isCameraBound
+
+    /** Устанавливает флаг привязки камеры */
     internal fun setCameraBoundInternal(bound: Boolean) {
         isCameraBound = bound
     }
+
+    /** Получает preview view */
     internal fun getInternalPreviewView(): PreviewView? = previewView
+
+    /** Устанавливает preview view */
     internal fun setInternalPreviewView(view: PreviewView?) {
         previewView = view
     }

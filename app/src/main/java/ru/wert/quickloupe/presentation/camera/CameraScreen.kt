@@ -23,7 +23,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Основной экран камеры с элементами управления
+ * Основной экран камеры с элементами управления.
+ * Управляет отображением изображения с камеры, проверяет разрешения,
+ * обрабатывает состояния загрузки и ошибок.
+ *
  * @param viewModel ViewModel для управления камерой
  * @param modifier модификатор компоновки
  * @param onError обработчик ошибок
@@ -44,7 +47,7 @@ fun CameraScreen(
     // Состояние из ViewModel
     val cameraState by viewModel.cameraState.collectAsStateWithLifecycle()
 
-    // Инициализируем камеру один раз
+    // Инициализируем камеру один раз при создании экрана
     LaunchedEffect(Unit) {
         viewModel.initializeCamera(lifecycleOwner)
     }
@@ -56,7 +59,6 @@ fun CameraScreen(
 
     // Разрешения
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
-
 
     // Получаем preview view из репозитория
     LaunchedEffect(cameraState.isInitialized) {
@@ -70,7 +72,7 @@ fun CameraScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         when {
-            // Проверка разрешений
+            // Проверка разрешений - запрашиваем доступ к камере
             !cameraPermissionState.status.isGranted -> {
                 PermissionRequiredScreen(
                     permissionState = cameraPermissionState,
@@ -79,12 +81,12 @@ fun CameraScreen(
                 )
             }
 
-            // Загрузка
+            // Состояние загрузки - показываем индикатор
             cameraState.isLoading -> {
                 LoadingIndicator()
             }
 
-            // Камера готова
+            // Камера готова - отображаем изображение
             cameraState.isInitialized -> {
                 if (cameraState.isFrozen && frozenBitmap != null) {
                     // Показываем замороженный кадр
@@ -103,7 +105,7 @@ fun CameraScreen(
                     LoadingIndicator()
                 }
 
-                // Overlay с управлением
+                // Overlay с управлением поверх изображения
                 CameraOverlay(
                     state = cameraState,
                     onZoomChanged = { zoom ->
@@ -115,10 +117,10 @@ fun CameraScreen(
                     onFreezeToggle = {
                         scope.launch {
                             if (!cameraState.isFrozen && !isCapturing) {
-                                // Захватываем кадр
+                                // Захватываем кадр для заморозки
                                 isCapturing = true
                                 try {
-                                    delay(100) // Даем время для стабилизации
+                                    delay(100) // Даем время для стабилизации изображения
                                     val bitmap = viewModel.captureFrame()
                                     if (bitmap != null) {
                                         frozenBitmap = bitmap
@@ -166,7 +168,9 @@ fun CameraScreen(
 }
 
 /**
- * Отображение preview с камеры
+ * Отображение preview с камеры.
+ * Использует AndroidView для интеграции CameraX PreviewView.
+ *
  * @param previewView View для отображения preview
  * @param modifier модификатор компоновки
  */
@@ -179,14 +183,16 @@ private fun CameraPreviewView(
         factory = { _ -> previewView },
         modifier = modifier,
         update = { view ->
-            // Force redraw
+            // Принудительная перерисовка view
             view.invalidate()
         }
     )
 }
 
 /**
- * Отображение замороженного кадра
+ * Отображение замороженного кадра.
+ * Используется при нажатии кнопки паузы.
+ *
  * @param bitmap изображение для отображения
  * @param modifier модификатор компоновки
  */
@@ -204,7 +210,8 @@ private fun FrozenFrameView(
 }
 
 /**
- * Индикатор загрузки
+ * Индикатор загрузки.
+ * Полупрозрачный черный фон с круговым прогрессом по центру.
  */
 @Composable
 private fun LoadingIndicator() {
@@ -219,7 +226,9 @@ private fun LoadingIndicator() {
 }
 
 /**
- * Сообщение об ошибке
+ * Сообщение об ошибке.
+ * Диалоговое окно с текстом ошибки и кнопкой OK.
+ *
  * @param message текст ошибки
  * @param onDismiss обработчик закрытия сообщения
  */

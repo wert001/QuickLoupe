@@ -15,6 +15,15 @@ import com.google.accompanist.permissions.PermissionState
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.shouldShowRationale
 
+/**
+ * Экран запроса разрешения на использование камеры.
+ * Отображается при первом запуске приложения или если пользователь отклонил разрешение.
+ *
+ * @param permissionState состояние разрешения
+ * @param onRequestPermission обработчик запроса разрешения
+ * @param onBackPressed обработчик нажатия кнопки "Назад"
+ * @param modifier модификатор компоновки
+ */
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun PermissionRequiredScreen(
@@ -32,7 +41,7 @@ fun PermissionRequiredScreen(
     ) {
         // Иконка камеры
         Icon(
-            imageVector = Icons.Default.Face, //Здесь нужна иконка камеры
+            imageVector = Icons.Default.Face, // TODO: Заменить на иконку камеры
             contentDescription = "Камера",
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(80.dp)
@@ -49,7 +58,7 @@ fun PermissionRequiredScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Описание
+        // Описание с объяснением необходимости разрешения
         Text(
             text = "Это приложение использует камеру вашего устройства " +
                     "для работы в качестве увеличительного стекла. " +
@@ -85,7 +94,7 @@ fun PermissionRequiredScreen(
             Text("Назад")
         }
 
-        // Если разрешение было отклонено
+        // Если разрешение было отклонено ранее, показываем дополнительное сообщение
         if (!permissionState.status.isGranted && permissionState.status.shouldShowRationale) {
             Spacer(modifier = Modifier.height(16.dp))
             Text(

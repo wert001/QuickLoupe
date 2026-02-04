@@ -17,7 +17,10 @@ import ru.wert.quickloupe.presentation.common.components.ZoomSlider
 import ru.wert.quickloupe.presentation.common.components.ControlButton
 
 /**
- * Оверлей с элементами управления камерой
+ * Оверлей с элементами управления камерой.
+ * Содержит кнопки управления и слайдер зума, накладывается поверх изображения с камеры.
+ * Поддерживает режимы для правой и левой руки.
+ *
  * @param state текущее состояние камеры
  * @param onZoomChanged обработчик изменения уровня зума
  * @param onZoomChangeFinished обработчик завершения изменения зума
@@ -44,7 +47,7 @@ fun CameraOverlay(
     var isRightHandMode by remember { mutableStateOf(true) }
 
     Box(modifier = modifier) {
-        // Верхняя панель
+        // Верхняя панель с кнопками "Назад", индикатором зума и вспышкой
         TopControls(
             state = state,
             onFlashToggle = onFlashToggle,
@@ -54,7 +57,7 @@ fun CameraOverlay(
                 .align(Alignment.TopCenter)
         )
 
-        // Нижняя панель
+        // Нижняя панель с кнопкой заморозки и переключения руки
         BottomControls(
             state = state,
             onFreezeToggle = onFreezeToggle,
@@ -68,7 +71,7 @@ fun CameraOverlay(
                 .align(Alignment.BottomCenter)
         )
 
-        // Вертикальный слайдер зума
+        // Вертикальный слайдер зума (слева или справа в зависимости от режима руки)
         VerticalZoomSlider(
             currentZoom = state.zoomLevel,
             onZoomChanged = onZoomChanged,
@@ -90,7 +93,9 @@ fun CameraOverlay(
 }
 
 /**
- * Верхняя панель управления
+ * Верхняя панель управления.
+ * Содержит кнопку "Назад", индикатор зума и кнопку вспышки.
+ *
  * @param state текущее состояние камеры
  * @param onFlashToggle обработчик переключения вспышки
  * @param onBackPressed обработчик нажатия кнопки "Назад"
@@ -106,7 +111,7 @@ private fun TopControls(
     Row(
         modifier = modifier
             .padding(top = 48.dp, start = 16.dp, end = 16.dp)
-            .background(Color.Black.copy(alpha = 0.3f))
+            .background(Color.Black.copy(alpha = 0.3f)) // Полупрозрачный черный фон
             .clip(MaterialTheme.shapes.medium)
             .padding(8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -137,7 +142,10 @@ private fun TopControls(
 }
 
 /**
- * Нижняя панель управления
+ * Нижняя панель управления.
+ * Содержит кнопку заморозки и переключения режима руки.
+ * Компоновка меняется в зависимости от выбранного режима.
+ *
  * @param state текущее состояние камеры
  * @param onFreezeToggle обработчик заморозки/разморозки изображения
  * @param onSwitchHandles обработчик переключения стороны управления
@@ -155,7 +163,7 @@ private fun BottomControls(
     Row(
         modifier = modifier
             .padding(bottom = 48.dp, start = 16.dp, end = 16.dp) // Добавлены отступы как у верхней панели
-            .background(Color.Black.copy(alpha = 0.3f))
+            .background(Color.Black.copy(alpha = 0.3f)) // Полупрозрачный черный фон
             .clip(MaterialTheme.shapes.medium)
             .padding(8.dp),
         horizontalArrangement = Arrangement.SpaceBetween, // Равномерное распределение
@@ -212,7 +220,9 @@ private fun BottomControls(
 }
 
 /**
- * Вертикальный слайдер зума
+ * Вертикальный слайдер зума.
+ * Компонент для плавного изменения уровня зума камеры.
+ *
  * @param currentZoom текущий уровень зума
  * @param onZoomChanged обработчик изменения уровня зума
  * @param onZoomChangeFinished обработчик завершения изменения зума
@@ -237,7 +247,8 @@ private fun VerticalZoomSlider(
 }
 
 /**
- * Вспомогательная функция для форматирования чисел
+ * Вспомогательная функция для форматирования чисел с плавающей точкой.
+ *
  * @param digits количество знаков после запятой
  * @return отформатированная строка
  */
